@@ -1,0 +1,1232 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Monitoring Temuan BPK RI — Bidang Bina Marga DPUPR Kab. Karanganyar">
+<meta name="theme-color" content="#1a56db">
+<title>Monitoring Temuan BPK — Bina Marga DPUPR Karanganyar</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
+<style>
+/* Firebase loading overlay */
+#fb-overlay{position:fixed;inset:0;background:rgba(255,255,255,.92);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;transition:opacity .4s}
+#fb-overlay.hide{opacity:0;pointer-events:none}
+.fb-spinner{width:36px;height:36px;border:3px solid var(--bd);border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#fb-overlay p{font-size:13px;color:var(--tx2);font-weight:600}
+#fb-overlay small{font-size:11px;color:var(--tx3)}
+/* sync badge on topbar */
+#sync-badge{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:100px;font-size:11px;font-weight:600;background:var(--greenbg);color:var(--greentx);border:1px solid #a7f3d0;transition:.3s}
+#sync-badge.syncing{background:var(--bluebg);color:var(--bluetx);border-color:#bfdbfe}
+#sync-badge.error{background:var(--redbg);color:var(--redtx);border-color:#f8b4b4}
+#sync-badge .sdot{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0}
+#sync-badge.syncing .sdot{animation:pulse .8s ease-in-out infinite alternate}
+@keyframes pulse{from{opacity:.3}to{opacity:1}}
+/* Firebase config modal */
+#mo-fbcfg .mb label{font-size:11px;font-weight:700;color:var(--tx2)}
+#mo-fbcfg .mb input{width:100%;padding:6px 9px;border:1px solid var(--bd2);border-radius:var(--r);font-size:12px;font-family:inherit;color:var(--tx);background:var(--sur);outline:none;margin-top:3px;margin-bottom:10px}
+#mo-fbcfg .mb input:focus{border-color:var(--blue);box-shadow:0 0 0 2px #bfdbfe}
+</style>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f4f5f7;--sur:#fff;--sur2:#f0f2f5;--bd:#e3e6ea;--bd2:#cdd1d9;
+  --tx:#1c2030;--tx2:#5c6475;--tx3:#9199a8;
+  --blue:#1a56db;--bluebg:#eff4ff;--bluetx:#1e429f;
+  --green:#057a55;--greenbg:#f3faf7;--greentx:#014737;
+  --red:#e02424;--redbg:#fdf2f2;--redtx:#771d1d;
+  --amber:#d97706;--amberbg:#fffbeb;--ambertx:#78350f;
+  --r:8px;--rl:12px;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;background:var(--bg);color:var(--tx);font-size:13px;line-height:1.5}
+.app{display:flex;min-height:100vh}
+
+/* sidebar */
+.sb{width:216px;min-width:216px;background:var(--sur);border-right:1px solid var(--bd);display:flex;flex-direction:column}
+.sb-logo{padding:18px 16px 12px;border-bottom:1px solid var(--bd)}
+.sb-logo .org{font-size:10px;color:var(--tx3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px}
+.sb-logo .appnm{font-size:13px;font-weight:700;color:var(--tx);line-height:1.35}
+.sb-nav{padding:8px 0;flex:1;overflow-y:auto}
+.nav-sec{font-size:10px;color:var(--tx3);text-transform:uppercase;letter-spacing:.07em;padding:12px 16px 4px;font-weight:700}
+.ni{display:flex;align-items:center;gap:8px;padding:8px 16px;cursor:pointer;color:var(--tx2);font-size:13px;font-weight:500;border:none;background:none;width:100%;text-align:left;border-left:3px solid transparent;transition:.12s}
+.ni:hover{background:var(--bg);color:var(--tx)}
+.ni.on{background:var(--bluebg);color:var(--bluetx);border-left-color:var(--blue)}
+.ni i{font-size:16px;width:18px;flex-shrink:0}
+.sb-foot{padding:10px 16px;border-top:1px solid var(--bd);font-size:11px;color:var(--tx3)}
+
+/* main */
+.main{flex:1;overflow:auto;display:flex;flex-direction:column}
+.topbar{background:var(--sur);border-bottom:1px solid var(--bd);padding:11px 22px;display:flex;align-items:center;justify-content:space-between;gap:12px;position:sticky;top:0;z-index:20}
+.topbar-l .t1{font-size:15px;font-weight:700;color:var(--tx)}
+.topbar-l .t2{font-size:11px;color:var(--tx3);margin-top:1px}
+.topbar-r{display:flex;gap:8px}
+
+.page{padding:18px 22px;display:none}
+.page.on{display:block}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:6px 13px;border-radius:var(--r);font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--bd2);background:var(--sur);color:var(--tx);font-family:inherit;transition:.12s}
+.btn:hover{background:var(--bg)}
+.btn-p{background:var(--blue);color:#fff;border-color:var(--blue)}
+.btn-p:hover{background:#1648c0}
+.btn-d{background:var(--red);color:#fff;border-color:var(--red)}
+.btn-d:hover{background:#c41f1f}
+.btn-sm{padding:5px 10px;font-size:12px}
+.btn i{font-size:15px}
+
+/* stat cards */
+.sg{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:11px;margin-bottom:18px}
+.sc{background:var(--sur);border:1px solid var(--bd);border-radius:var(--rl);padding:13px 15px}
+.sc .sl{font-size:10px;color:var(--tx3);font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px}
+.sc .sv{font-size:21px;font-weight:700;color:var(--tx);line-height:1}
+.sc .ss{font-size:11px;color:var(--tx3);margin-top:3px}
+.sc.red{border-left:3px solid var(--red)}.sc.red .sv{color:var(--red)}
+.sc.green{border-left:3px solid var(--green)}.sc.green .sv{color:var(--green)}
+.sc.amber{border-left:3px solid var(--amber)}.sc.amber .sv{color:var(--amber)}
+.sc.blue{border-left:3px solid var(--blue)}.sc.blue .sv{color:var(--blue)}
+
+/* badges */
+.b{display:inline-block;padding:2px 8px;border-radius:100px;font-size:11px;font-weight:600;white-space:nowrap}
+.b-red{background:var(--redbg);color:var(--redtx)}
+.b-green{background:var(--greenbg);color:var(--greentx)}
+.b-amber{background:var(--amberbg);color:var(--ambertx)}
+.b-blue{background:var(--bluebg);color:var(--bluetx)}
+.b-gray{background:var(--sur2);color:var(--tx2)}
+.b-purple{background:#f5f3ff;color:#4a1d96}
+
+/* progress bar */
+.pb{height:5px;background:var(--bd);border-radius:3px;overflow:hidden}
+.pbf{height:100%;border-radius:3px}
+
+/* alert */
+.al{padding:9px 13px;border-radius:var(--r);font-size:12px;margin-bottom:8px;display:flex;align-items:flex-start;gap:8px;border:1px solid}
+.al i{font-size:15px;flex-shrink:0;margin-top:1px}
+.al.red{background:var(--redbg);color:var(--redtx);border-color:#f8b4b4}
+.al.amber{background:var(--amberbg);color:var(--ambertx);border-color:#fcd34d}
+.al.blue{background:var(--bluebg);color:var(--bluetx);border-color:#bfdbfe}
+
+/* table */
+.tw{overflow-x:auto;border-radius:var(--rl);border:1px solid var(--bd)}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{background:var(--sur2);padding:8px 11px;text-align:left;font-weight:700;font-size:10px;color:var(--tx2);text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--bd);white-space:nowrap}
+td{padding:8px 11px;border-bottom:1px solid var(--bd);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#fafbfc}
+.nr{text-align:right;font-variant-numeric:tabular-nums}
+.rr td{background:#fff8f8!important}
+.ra td{background:#fffdf0!important}
+
+/* section header */
+.sh{display:flex;align-items:center;justify-content:space-between;margin-bottom:11px}
+.sh h2{font-size:14px;font-weight:700}
+.div{height:1px;background:var(--bd);margin:18px 0}
+
+/* chart */
+.cr{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px}
+.cb{background:var(--sur);border:1px solid var(--bd);border-radius:var(--rl);padding:14px}
+.cb h3{font-size:12px;font-weight:700;color:var(--tx);margin-bottom:10px}
+
+/* filter row */
+.fr{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:11px;align-items:center}
+.fr input[type=text],.fr select{padding:6px 9px;border:1px solid var(--bd2);border-radius:var(--r);font-size:12px;color:var(--tx);background:var(--sur);outline:none;font-family:inherit}
+.fr input[type=text]{min-width:200px}
+.fr input[type=text]:focus,.fr select:focus{border-color:var(--blue);box-shadow:0 0 0 2px #bfdbfe}
+
+/* modal */
+.mo{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100;justify-content:center;align-items:flex-start;padding:36px 12px;overflow-y:auto}
+.mo.open{display:flex}
+.md{background:var(--sur);border-radius:var(--rl);width:740px;max-width:98vw;box-shadow:0 8px 40px rgba(0,0,0,.18)}
+.md-sm{width:480px}
+.mh{padding:14px 18px;border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between}
+.mh h2{font-size:14px;font-weight:700}
+.mc{background:none;border:none;cursor:pointer;font-size:18px;color:var(--tx3);padding:0;line-height:1}
+.mb{padding:18px;max-height:68vh;overflow-y:auto}
+.mf{padding:11px 18px;border-top:1px solid var(--bd);display:flex;justify-content:flex-end;gap:8px}
+
+/* form */
+.fgi{display:flex;flex-direction:column;gap:3px}
+.fgi.full{grid-column:1/-1}
+.fgi label{font-size:11px;font-weight:700;color:var(--tx2)}
+.fgi input,.fgi select,.fgi textarea{padding:6px 9px;border:1px solid var(--bd2);border-radius:var(--r);font-size:12px;color:var(--tx);background:var(--sur);outline:none;font-family:inherit}
+.fgi input:focus,.fgi select:focus,.fgi textarea:focus{border-color:var(--blue);box-shadow:0 0 0 2px #bfdbfe}
+.fgi textarea{resize:vertical;min-height:55px}
+.fg2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.fsec{font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.07em;margin:14px 0 8px;padding-bottom:4px;border-bottom:1px solid var(--bd)}
+
+/* cicilan rows */
+.ci-row{display:grid;grid-template-columns:130px 1fr 120px 30px;gap:5px;align-items:center;margin-bottom:5px}
+.ci-row input{padding:5px 7px;border:1px solid var(--bd2);border-radius:var(--r);font-size:11px;font-family:inherit;color:var(--tx);background:var(--sur);width:100%}
+.ci-del{background:none;border:1px solid var(--bd2);border-radius:var(--r);cursor:pointer;width:26px;height:26px;display:flex;align-items:center;justify-content:center;color:var(--red);font-size:13px}
+
+/* action buttons */
+.ab{display:flex;gap:3px}
+.ib{background:none;border:none;cursor:pointer;padding:4px;border-radius:var(--r);color:var(--tx3);font-size:15px;display:inline-flex;align-items:center}
+.ib:hover{background:var(--sur2);color:var(--tx)}
+.ib.e:hover{color:var(--blue)}
+.ib.d:hover{color:var(--red)}
+
+/* tahap dots */
+.td{display:flex;gap:3px;align-items:center}
+.dot{width:22px;height:22px;border-radius:50%;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;border:1.5px solid var(--bd);flex-shrink:0}
+.dot.done{background:var(--green);color:#fff;border-color:var(--green)}
+.dot.act{background:var(--blue);color:#fff;border-color:var(--blue)}
+.dot.pend{background:var(--sur);color:var(--tx3)}
+.dot.ov{background:var(--red);color:#fff;border-color:var(--red)}
+.dotline{width:8px;height:1px;background:var(--bd)}
+
+/* upload */
+.uz{border:2px dashed var(--bd2);border-radius:var(--rl);padding:28px;text-align:center;cursor:pointer;transition:.18s}
+.uz:hover,.uz.drag{border-color:var(--blue);background:var(--bluebg)}
+.uz i{font-size:30px;color:var(--tx3);margin-bottom:6px}
+.uz p{font-size:13px;color:var(--tx2);margin-bottom:3px}
+.uz span{font-size:11px;color:var(--tx3)}
+
+/* toast */
+#toast{position:fixed;bottom:22px;right:22px;background:#1c2030;color:#fff;padding:9px 15px;border-radius:var(--r);font-size:12px;font-weight:600;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none}
+#toast.show{opacity:1}
+
+.leg{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px;font-size:11px;color:var(--tx2)}
+.legdot{width:10px;height:10px;border-radius:2px;display:inline-block;margin-right:3px}
+</style>
+</head>
+<body>
+<!-- Firebase Loading Overlay -->
+<div id="fb-overlay">
+  <div class="fb-spinner"></div>
+  <p>Memuat data dari Firebase…</p>
+  <small id="fb-overlay-msg">Harap tunggu sebentar…</small>
+</div>
+<div id="toast"></div>
+<div class="app">
+
+<!-- SIDEBAR -->
+<aside class="sb">
+  <div class="sb-logo">
+    <div class="org">DPUPR Kab. Karanganyar — Bina Marga</div>
+    <div class="appnm">Monitoring Temuan BPK RI</div>
+  </div>
+  <nav class="sb-nav">
+    <div class="nav-sec">Menu Utama</div>
+    <button class="ni on" data-page="dashboard"><i class="ti ti-layout-dashboard"></i>Dashboard</button>
+    <button class="ni" data-page="semua"><i class="ti ti-table"></i>Semua Data</button>
+    <button class="ni" data-page="belum"><i class="ti ti-alert-triangle"></i>Belum Setor</button>
+    <button class="ni" data-page="cicilan"><i class="ti ti-refresh-alert"></i>Cicilan Berjalan</button>
+    <button class="ni" data-page="lhp25"><i class="ti ti-file-invoice"></i>LHP TA 2025</button>
+    <div class="nav-sec">Data</div>
+    <button class="ni" data-page="tambah"><i class="ti ti-plus"></i>Tambah Paket</button>
+    <button class="ni" data-page="impor"><i class="ti ti-upload"></i>Import Excel</button>
+  </nav>
+  <div class="sb-foot">
+    <div style="margin-bottom:5px">Update: <span id="lupd">—</span></div>
+    <div id="fb-host-info" style="font-size:10px;color:var(--tx3);margin-bottom:5px;display:none"></div>
+    <button onclick="openFbCfg()" style="background:none;border:1px solid var(--bd2);border-radius:5px;padding:4px 8px;font-size:10px;color:var(--tx3);cursor:pointer;width:100%;font-family:inherit"><i class="ti ti-database" style="font-size:11px;vertical-align:-1px"></i> Firebase Config</button>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="topbar">
+    <div class="topbar-l">
+      <div class="t1" id="pg-title">Dashboard</div>
+      <div class="t2" id="pg-sub">Rekapitulasi temuan BPK RI — Bidang Bina Marga DPUPR Karanganyar</div>
+    </div>
+    <div class="topbar-r">
+      <div id="sync-badge"><span class="sdot"></span><span id="sync-txt">Terhubung</span></div>
+      <button class="btn btn-sm" onclick="dlExcel()"><i class="ti ti-download"></i>Download Excel</button>
+      <button class="btn btn-p btn-sm" onclick="goPage('tambah')"><i class="ti ti-plus"></i>Tambah Paket</button>
+    </div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div class="page on" id="pg-dashboard">
+    <div id="dash-alerts"></div>
+    <div class="sg" id="dash-stats"></div>
+    <div class="cr">
+      <div class="cb">
+        <h3>Status pembayaran (jumlah paket)</h3>
+        <div style="position:relative;height:190px"><canvas id="cStatus" role="img" aria-label="Donut chart status pembayaran per jumlah paket">Status: Belum Setor, Cicilan, Lunas.</canvas></div>
+        <div class="leg" id="leg-status"></div>
+      </div>
+      <div class="cb">
+        <h3>Sisa piutang per sumber temuan (Rp juta)</h3>
+        <div style="position:relative;height:190px"><canvas id="cSumber" role="img" aria-label="Bar chart sisa piutang per sumber LHP">Sisa piutang per LHP.</canvas></div>
+      </div>
+    </div>
+    <div class="cb" style="margin-bottom:18px">
+      <h3>10 penyedia dengan sisa piutang terbesar — <span style="color:var(--red)">merah=Kelompok A</span> · <span style="color:var(--amber)">kuning=Kelompok B</span> · <span style="color:var(--blue)">biru=Kelompok C</span></h3>
+      <div id="c10wrap" style="position:relative"><canvas id="cTop10" role="img" aria-label="Bar chart 10 penyedia piutang terbesar">Top 10 sisa piutang.</canvas></div>
+    </div>
+    <div class="sh"><h2>Penyedia kritis — perlu tindak lanjut segera</h2></div>
+    <div class="tw"><table><thead><tr>
+      <th>Penyedia Jasa</th><th>Nama Paket</th><th>Sumber</th>
+      <th class="nr">Total Temuan</th><th class="nr">Sisa (Rp)</th>
+      <th>% Lunas</th><th>Tahap SP</th><th>Status</th><th>Aksi</th>
+    </tr></thead><tbody id="tbl-kritis"></tbody></table></div>
+  </div>
+
+  <!-- SEMUA DATA -->
+  <div class="page" id="pg-semua">
+    <div class="fr">
+      <input type="text" id="sq" placeholder="Cari paket / penyedia…" oninput="rSemua()">
+      <select id="fSumber" onchange="rSemua()">
+        <option value="">Semua sumber</option>
+        <option>LKPD 2023</option><option>PDTT 2024</option><option>LKPD 2024</option><option>LKPD 2025</option>
+      </select>
+      <select id="fStatus" onchange="rSemua()">
+        <option value="">Semua status</option>
+        <option>Belum Setor</option><option>Cicilan</option><option>Lunas</option>
+      </select>
+      <select id="fKelompok" onchange="rSemua()">
+        <option value="">Semua kelompok</option>
+        <option value="A">Kelompok A</option><option value="B">Kelompok B</option><option value="C">Kelompok C</option>
+      </select>
+    </div>
+    <div class="tw"><table><thead><tr>
+      <th>#</th><th>Penyedia Jasa</th><th>Nama Paket</th><th>Sumber</th><th>PPK</th>
+      <th class="nr">Temuan (Rp)</th><th class="nr">Sudah Setor (Rp)</th><th class="nr">Sisa (Rp)</th>
+      <th>%</th><th>Tahap</th><th>Status</th><th>Aksi</th>
+    </tr></thead><tbody id="tbl-semua"></tbody></table></div>
+    <div id="cnt-semua" style="font-size:11px;color:var(--tx3);margin-top:7px"></div>
+  </div>
+
+  <!-- BELUM SETOR -->
+  <div class="page" id="pg-belum">
+    <div id="al-belum"></div>
+    <div class="tw"><table><thead><tr>
+      <th>#</th><th>Penyedia Jasa</th><th>Nama Paket</th><th>Sumber</th>
+      <th class="nr">Total Temuan (Rp)</th><th>SP Terakhir</th><th>Tgl SP</th>
+      <th>Hari Lewat</th><th>Rekomendasi</th><th>Aksi</th>
+    </tr></thead><tbody id="tbl-belum"></tbody></table></div>
+  </div>
+
+  <!-- CICILAN BERJALAN -->
+  <div class="page" id="pg-cicilan">
+    <div id="al-cicilan" style="margin-bottom:10px"></div>
+    <div class="tw"><table><thead><tr>
+      <th>#</th><th>Penyedia Jasa</th><th>Nama Paket</th>
+      <th class="nr">Total Temuan</th><th class="nr">Sudah Setor</th><th class="nr">Sisa</th>
+      <th>Progress</th><th>Cicilan Terakhir</th><th>Perjanjian Resmi</th><th>Aksi</th>
+    </tr></thead><tbody id="tbl-cicilan"></tbody></table></div>
+  </div>
+
+  <!-- LHP TA 2025 -->
+  <div class="page" id="pg-lhp25">
+    <div class="al amber" style="margin-bottom:12px">
+      <i class="ti ti-clock-exclamation"></i>
+      <span>LHP BPK TA 2025 diterima sekitar <strong>Juni 2026</strong>. SP1 wajib diterbitkan paling lambat <strong>7 hari</strong> setelah LHP diterima resmi. Batas penyelesaian <strong>60 hari</strong> dari penerimaan LHP.</span>
+    </div>
+    <div class="tw"><table><thead><tr>
+      <th>#</th><th>Penyedia Jasa</th><th>Nama Paket</th><th>Kategori</th>
+      <th class="nr">Temuan (Rp)</th><th>Status Setor</th><th>SP1</th><th>Catatan</th><th>Aksi</th>
+    </tr></thead><tbody id="tbl-lhp25"></tbody></table></div>
+  </div>
+
+  <!-- TAMBAH PAKET -->
+  <div class="page" id="pg-tambah">
+    <div style="max-width:700px">
+      <div class="fsec">Informasi Paket</div>
+      <div class="fg2" style="margin-bottom:10px">
+        <div class="fgi full"><label>Nama Paket Pekerjaan *</label><input id="tNm" type="text" placeholder="Rehabilitasi Jalan …"></div>
+        <div class="fgi"><label>Penyedia Jasa *</label><input id="tPy" type="text" placeholder="CV. / PT. …"></div>
+        <div class="fgi"><label>Nomor Kontrak</label><input id="tNk" type="text"></div>
+        <div class="fgi"><label>Nilai Kontrak (Rp)</label><input id="tVk" type="number" placeholder="0"></div>
+        <div class="fgi"><label>Nama PPK</label><input id="tPpk" type="text"></div>
+        <div class="fgi"><label>Nama PPTK</label><input id="tPptk" type="text"></div>
+        <div class="fgi"><label>Sumber Temuan *</label>
+          <select id="tSb"><option>LKPD 2023</option><option>PDTT 2024</option><option>LKPD 2024</option><option selected>LKPD 2025</option></select></div>
+        <div class="fgi"><label>Jenis Temuan</label>
+          <select id="tJn"><option>Kurang Volume</option><option>Tidak Sesuai Spesifikasi</option><option>Kurvol + Tidak Sesuai Spek</option><option>Denda Keterlambatan</option><option>Kelebihan Pembayaran</option></select></div>
+        <div class="fgi"><label>Kategori Belanja</label>
+          <select id="tKat"><option>Belanja Modal Jalan</option><option>Belanja Barang/Jasa</option><option>Belanja Modal Gedung</option><option>Lainnya</option></select></div>
+        <div class="fgi"><label>Tahun Anggaran</label>
+          <select id="tTA"><option>2023</option><option>2024</option><option selected>2025</option></select></div>
+      </div>
+      <div class="fsec">Temuan & Pembayaran</div>
+      <div class="fg2" style="margin-bottom:10px">
+        <div class="fgi"><label>Nilai Temuan (Rp) *</label><input id="tTm" type="number" placeholder="0"></div>
+        <div class="fgi"><label>Status Pembayaran</label>
+          <select id="tSt"><option>Belum Setor</option><option>Cicilan</option><option>Lunas</option></select></div>
+        <div class="fgi"><label>Perjanjian Angsuran Resmi</label>
+          <select id="tPj"><option value="0">Belum Ada</option><option value="1">Sudah Ada</option></select></div>
+        <div class="fgi"><label>Kelompok Prioritas</label>
+          <select id="tKl"><option value="A">A — Belum Setor</option><option value="B">B — Cicilan</option><option value="C" selected>C — LHP TA 2025</option></select></div>
+      </div>
+      <div class="fsec">Surat Penagihan</div>
+      <div class="fg2" style="margin-bottom:10px">
+        <div class="fgi"><label>No. SP1</label><input id="tS1n" type="text"></div>
+        <div class="fgi"><label>Tgl SP1</label><input id="tS1t" type="date"></div>
+        <div class="fgi"><label>No. SP2</label><input id="tS2n" type="text"></div>
+        <div class="fgi"><label>Tgl SP2</label><input id="tS2t" type="date"></div>
+        <div class="fgi"><label>No. SP3</label><input id="tS3n" type="text"></div>
+        <div class="fgi"><label>Tgl SP3</label><input id="tS3t" type="date"></div>
+        <div class="fgi"><label>Tahap SP Saat Ini</label>
+          <select id="tTh"><option value="0">Belum SP</option><option value="1">SP1 Terkirim</option><option value="2">SP2 Terkirim</option><option value="3">SP3 Terkirim</option><option value="4">Eskalasi/TP-TGR</option></select></div>
+      </div>
+      <div class="fsec">Catatan Internal</div>
+      <div class="fgi" style="margin-bottom:14px"><textarea id="tCt" rows="3" placeholder="Riwayat komunikasi, kondisi khusus, dll…"></textarea></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-p" onclick="simpanBaru()"><i class="ti ti-check"></i>Simpan Paket</button>
+        <button class="btn" onclick="resetForm()"><i class="ti ti-refresh"></i>Reset</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- IMPORT -->
+  <div class="page" id="pg-impor">
+    <div style="max-width:560px">
+      <div class="fsec">Upload File Excel</div>
+      <div class="uz" id="uz" onclick="document.getElementById('fi').click()"
+        ondragover="event.preventDefault();this.classList.add('drag')"
+        ondragleave="this.classList.remove('drag')"
+        ondrop="dropFile(event)">
+        <i class="ti ti-file-spreadsheet"></i>
+        <p>Klik atau seret file Excel ke sini</p>
+        <span>Format .xlsx — kolom sesuai template standar DPUPR</span>
+      </div>
+      <input type="file" id="fi" accept=".xlsx,.xls" style="display:none" onchange="importExcel(this)">
+      <div id="import-result" style="margin-top:10px"></div>
+      <div class="div"></div>
+      <div class="fsec">Template Excel</div>
+      <p style="font-size:12px;color:var(--tx2);margin-bottom:10px">Download template kolom standar untuk pengisian data massal.</p>
+      <button class="btn" onclick="dlTemplate()"><i class="ti ti-download"></i>Download Template</button>
+      <div style="margin-top:14px;padding:12px 14px;background:var(--bluebg);border-radius:var(--r);border:1px solid #bfdbfe">
+        <p style="font-size:12px;color:var(--bluetx);font-weight:700;margin-bottom:4px"><i class="ti ti-info-circle" style="vertical-align:-2px"></i> Petunjuk Import</p>
+        <p style="font-size:11px;color:var(--bluetx);line-height:1.7">
+          • Kolom <strong>Nama Paket</strong> dan <strong>Penyedia Jasa</strong> wajib diisi<br>
+          • Jika kombinasi Nama Paket + Penyedia sudah ada, data akan <strong>diperbarui</strong><br>
+          • Jika belum ada, data akan <strong>ditambahkan</strong> sebagai paket baru<br>
+          • Histori cicilan tidak diimpor via Excel — input manual di menu Edit
+        </p>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /main -->
+</div><!-- /app -->
+
+<!-- MODAL EDIT -->
+<div class="mo" id="mo-edit">
+  <div class="md">
+    <div class="mh"><h2 id="mo-edit-ttl">Edit Data Paket</h2><button class="mc" onclick="closeMo('mo-edit')">&#x2715;</button></div>
+    <div class="mb">
+      <div class="fsec">Informasi Paket</div>
+      <div class="fg2">
+        <div class="fgi full"><label>Nama Paket</label><input id="eNm" type="text"></div>
+        <div class="fgi"><label>Penyedia Jasa</label><input id="ePy" type="text"></div>
+        <div class="fgi"><label>No. Kontrak</label><input id="eNk" type="text"></div>
+        <div class="fgi"><label>Nilai Kontrak (Rp)</label><input id="eVk" type="number"></div>
+        <div class="fgi"><label>PPK</label><input id="ePpk" type="text"></div>
+        <div class="fgi"><label>PPTK</label><input id="ePptk" type="text"></div>
+        <div class="fgi"><label>Sumber Temuan</label>
+          <select id="eSb"><option>LKPD 2023</option><option>PDTT 2024</option><option>LKPD 2024</option><option>LKPD 2025</option></select></div>
+        <div class="fgi"><label>Jenis Temuan</label>
+          <select id="eJn"><option>Kurang Volume</option><option>Tidak Sesuai Spesifikasi</option><option>Kurvol + Tidak Sesuai Spek</option><option>Denda Keterlambatan</option><option>Kelebihan Pembayaran</option></select></div>
+        <div class="fgi"><label>Kategori Belanja</label>
+          <select id="eKat"><option>Belanja Modal Jalan</option><option>Belanja Barang/Jasa</option><option>Belanja Modal Gedung</option><option>Lainnya</option></select></div>
+        <div class="fgi"><label>Tahun Anggaran</label>
+          <select id="eTA"><option>2023</option><option>2024</option><option>2025</option></select></div>
+      </div>
+      <div class="fsec">Temuan & Pembayaran</div>
+      <div class="fg2">
+        <div class="fgi"><label>Nilai Temuan (Rp)</label><input id="eTm" type="number"></div>
+        <div class="fgi"><label>Status Pembayaran</label>
+          <select id="eSt"><option>Belum Setor</option><option>Cicilan</option><option>Lunas</option></select></div>
+        <div class="fgi"><label>Perjanjian Angsuran Resmi</label>
+          <select id="ePj"><option value="0">Belum Ada</option><option value="1">Sudah Ada</option></select></div>
+        <div class="fgi"><label>Kelompok</label>
+          <select id="eKl"><option value="A">A — Belum Setor</option><option value="B">B — Cicilan</option><option value="C">C — LHP 2025</option></select></div>
+      </div>
+      <div class="fsec">Histori Setoran / Cicilan</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px">
+        <span style="font-size:11px;color:var(--tx3)">Tanggal &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Jumlah (Rp) &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; No. Bukti Setor</span>
+        <button class="btn btn-sm" onclick="addCi()"><i class="ti ti-plus"></i>Tambah Setoran</button>
+      </div>
+      <div id="ci-list"></div>
+      <div style="font-size:12px;margin-top:5px;padding-top:5px;border-top:1px solid var(--bd)">Total disetor: <strong id="ciTot" style="color:var(--green)">Rp 0</strong></div>
+      <div class="fsec">Surat Penagihan</div>
+      <div class="fg2">
+        <div class="fgi"><label>No. SP1</label><input id="eS1n" type="text"></div>
+        <div class="fgi"><label>Tgl SP1</label><input id="eS1t" type="date"></div>
+        <div class="fgi"><label>No. SP2</label><input id="eS2n" type="text"></div>
+        <div class="fgi"><label>Tgl SP2</label><input id="eS2t" type="date"></div>
+        <div class="fgi"><label>No. SP3</label><input id="eS3n" type="text"></div>
+        <div class="fgi"><label>Tgl SP3</label><input id="eS3t" type="date"></div>
+        <div class="fgi"><label>Tahap SP</label>
+          <select id="eTh"><option value="0">Belum SP</option><option value="1">SP1</option><option value="2">SP2</option><option value="3">SP3</option><option value="4">Eskalasi</option></select></div>
+      </div>
+      <div class="fsec">Catatan Internal</div>
+      <div class="fgi"><textarea id="eCt" rows="3"></textarea></div>
+    </div>
+    <div class="mf"><button class="btn" onclick="closeMo('mo-edit')">Batal</button><button class="btn btn-p" onclick="saveEdit()"><i class="ti ti-check"></i>Simpan Perubahan</button></div>
+  </div>
+</div>
+
+<!-- MODAL HISTORI -->
+<div class="mo" id="mo-hist">
+  <div class="md md-sm"><div class="mh"><h2>Histori Setoran</h2><button class="mc" onclick="closeMo('mo-hist')">&#x2715;</button></div>
+    <div class="mb" id="mo-hb"></div>
+    <div class="mf"><button class="btn" onclick="closeMo('mo-hist')">Tutup</button></div>
+  </div>
+</div>
+
+<!-- MODAL HAPUS -->
+<div class="mo" id="mo-hapus">
+  <div class="md md-sm"><div class="mh"><h2>Konfirmasi Hapus</h2><button class="mc" onclick="closeMo('mo-hapus')">&#x2715;</button></div>
+    <div class="mb">
+      <p style="font-size:13px;margin-bottom:8px">Yakin ingin menghapus data ini?</p>
+      <p id="hNm" style="font-size:12px;color:var(--tx2);font-weight:600"></p>
+      <p style="font-size:11px;color:var(--red);margin-top:8px">Tindakan ini tidak dapat dibatalkan.</p>
+    </div>
+    <div class="mf"><button class="btn" onclick="closeMo('mo-hapus')">Batal</button><button class="btn btn-d" onclick="doHapus()"><i class="ti ti-trash"></i>Hapus</button></div>
+  </div>
+</div>
+<!-- MODAL FIREBASE CONFIG -->
+<div class="mo" id="mo-fbcfg">
+  <div class="md md-sm">
+    <div class="mh"><h2><i class="ti ti-database" style="vertical-align:-2px;color:var(--amber)"></i> Konfigurasi Firebase</h2><button class="mc" onclick="closeMo('mo-fbcfg')">&#x2715;</button></div>
+    <div class="mb" style="padding:16px 18px">
+      <div class="al blue" style="margin-bottom:14px"><i class="ti ti-info-circle"></i><span>Isi dengan konfigurasi Firebase project Anda. Konfigurasi tersimpan di browser ini saja — tidak ada di file HTML.</span></div>
+      <label>API Key</label>
+      <input id="fb-apiKey" type="text" placeholder="AIzaSy...">
+      <label>Auth Domain</label>
+      <input id="fb-authDomain" type="text" placeholder="project-id.firebaseapp.com">
+      <label>Project ID</label>
+      <input id="fb-projectId" type="text" placeholder="project-id">
+      <label>Storage Bucket</label>
+      <input id="fb-storageBucket" type="text" placeholder="project-id.appspot.com">
+      <label>Messaging Sender ID</label>
+      <input id="fb-messagingSenderId" type="text" placeholder="123456789012">
+      <label>App ID</label>
+      <input id="fb-appId" type="text" placeholder="1:123456789012:web:abc...">
+      <div id="fb-cfg-result" style="margin-top:4px"></div>
+      <div style="font-size:10px;color:var(--tx3);margin-top:6px"><i class="ti ti-info-circle" style="vertical-align:-1px"></i> Tombol <strong>Test</strong> memvalidasi format. Koneksi nyata terjadi setelah klik <strong>Simpan &amp; Hubungkan</strong>.</div>
+    </div>
+    <div class="mf">
+      <button class="btn" onclick="closeMo('mo-fbcfg')">Batal</button>
+      <button class="btn" onclick="fbTestOnly()" style="margin-right:auto"><i class="ti ti-plug"></i> Test</button>
+      <button class="btn btn-p" onclick="fbSaveCfg()"><i class="ti ti-device-floppy"></i> Simpan & Hubungkan</button>
+    </div>
+  </div>
+</div>
+
+<script>
+
+let DATA=[], editId=-1, hapusId=-1, tempCi=[], cSt=null, cSb=null, cT10=null;
+
+const rp=v=>'Rp '+Math.round(v||0).toLocaleString('id-ID');
+const rpM=v=>{const jt=Math.round((v||0)/1000000);return jt>=1000?(jt/1000).toFixed(1)+' M':jt.toLocaleString('id-ID')+' jt';};
+const pct=(a,b)=>b>0?Math.min(100,Math.round((a/b)*100)):0;
+const today=()=>new Date().toISOString().slice(0,10);
+const daysDiff=d=>d?Math.floor((Date.now()-new Date(d))/864e5):null;
+const fmtD=d=>{if(!d)return'—';try{return new Date(d).toLocaleDateString('id-ID',{day:'2-digit',month:'short',year:'numeric'});}catch(e){return d;}};
+const getSetor=d=>(d.ci||[]).reduce((s,c)=>s+(+c.j||0),0);
+const getSisa=d=>Math.max(0,(d.tm||0)-getSetor(d));
+
+
+
+// ── HELPERS ──
+function stBadge(s){if(s==='Lunas')return'<span class="b b-green">Lunas</span>';if(s==='Cicilan')return'<span class="b b-amber">Cicilan</span>';return'<span class="b b-red">Belum Setor</span>';}
+function thBadge(t){const lb=['Belum SP','SP1','SP2','SP3','Eskalasi'],cl=['b-gray','b-blue','b-amber','b-red','b-red'];return`<span class="b ${cl[t]||'b-gray'}">${lb[t]||'?'}</span>`;}
+function klBadge(k){if(k==='A')return'<span class="b b-red">Kel.A</span>';if(k==='B')return'<span class="b b-amber">Kel.B</span>';return'<span class="b b-blue">Kel.C</span>';}
+function thDots(t){
+  const lb=['','SP1','SP2','SP3','TGR'];
+  let h='<div class="td">';
+  for(let i=1;i<=4;i++){
+    const cls=i<t?'done':i===t?'act':t>=4&&i===4?'ov':'pend';
+    h+=`<div class="dot ${cls}" title="${lb[i]}">${lb[i]}</div>`;
+    if(i<4)h+=`<div class="dotline"></div>`;
+  }
+  return h+'</div>';
+}
+function reko(d){
+  const sisa=getSisa(d),days=daysDiff(d.s1t);
+  if(d.py.includes('Sosro Karya'))return'<span style="color:var(--red);font-weight:700">Eskalasi TP-TGR</span>';
+  if(d.th===0)return'<span style="color:var(--red)">Kirim SP1 segera</span>';
+  if(days!==null&&days>60&&d.th<2)return'<span style="color:var(--red)">SP1 >60 hr → SP2 segera</span>';
+  if(days!==null&&days>30&&d.th===1)return'<span style="color:var(--amber)">SP1 >30 hr → evaluasi</span>';
+  if(d.st==='Cicilan'&&!d.pj)return'<span style="color:var(--amber)">Legalisasi perjanjian</span>';
+  if(sisa>0&&sisa<5000000)return'Dorong pelunasan sekaligus';
+  return'Monitor berkala';
+}
+
+// ── NAVIGATION ──
+function goPage(id){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
+  document.querySelectorAll('.ni').forEach(n=>n.classList.remove('on'));
+  document.getElementById('pg-'+id).classList.add('on');
+  document.querySelector(`.ni[data-page="${id}"]`)&&document.querySelector(`.ni[data-page="${id}"]`).classList.add('on');
+  const titles={dashboard:'Dashboard',semua:'Semua Data',belum:'Belum Setor',cicilan:'Cicilan Berjalan',lhp25:'LHP TA 2025',tambah:'Tambah Paket Baru',impor:'Import Excel'};
+  const subs={dashboard:'Rekapitulasi temuan BPK RI — Bidang Bina Marga DPUPR Karanganyar',semua:'Seluruh paket pekerjaan yang memiliki temuan BPK',belum:'Penyedia yang belum melakukan setoran apapun — perlu tindak lanjut',cicilan:'Penyedia yang sedang dalam proses pembayaran cicilan',lhp25:'Temuan LHP BPK TA 2025 — SP1 belum diterbitkan',tambah:'Tambah data paket pekerjaan baru ke sistem',impor:'Upload file Excel untuk update data massal'};
+  document.getElementById('pg-title').textContent=titles[id]||id;
+  document.getElementById('pg-sub').textContent=subs[id]||'';
+  const renders={dashboard:rDash,semua:rSemua,belum:rBelum,cicilan:rCicilan,lhp25:rLhp25};
+  if(renders[id])renders[id]();
+}
+
+// ── DASHBOARD ──
+function rDash(){
+  const tot=DATA.reduce((s,d)=>s+d.tm,0);
+  const setor=DATA.reduce((s,d)=>s+getSetor(d),0);
+  const sisa=DATA.reduce((s,d)=>s+getSisa(d),0);
+  const lunas=DATA.filter(d=>d.st==='Lunas').length;
+  const cc=DATA.filter(d=>d.st==='Cicilan').length;
+  const bs=DATA.filter(d=>d.st==='Belum Setor').length;
+  const tanpaPerj=DATA.filter(d=>d.st==='Cicilan'&&!d.pj).length;
+  document.getElementById('dash-stats').innerHTML=`
+    <div class="sc red"><div class="sl">Total Sisa Piutang</div><div class="sv">${rpM(sisa)}</div><div class="ss">dari total temuan ${rpM(tot)}</div></div>
+    <div class="sc green"><div class="sl">Total Sudah Disetor</div><div class="sv">${rpM(setor)}</div><div class="ss">${pct(setor,tot)}% dari total temuan</div></div>
+    <div class="sc amber"><div class="sl">Paket Belum Setor</div><div class="sv">${bs}</div><div class="ss">dari ${DATA.length} total paket</div></div>
+    <div class="sc blue"><div class="sl">Paket Cicilan</div><div class="sv">${cc}</div><div class="ss">${tanpaPerj} tanpa perjanjian resmi</div></div>
+    <div class="sc green"><div class="sl">Paket Lunas</div><div class="sv">${lunas}</div><div class="ss">selesai</div></div>
+    <div class="sc"><div class="sl">Total Paket</div><div class="sv">${DATA.length}</div><div class="ss">LHP 2023–2025</div></div>`;
+
+  let al='';
+  if(tanpaPerj>0)al+=`<div class="al amber"><i class="ti ti-alert-triangle"></i><span><strong>${tanpaPerj} penyedia</strong> mencicil secara informal — perjanjian angsuran resmi belum ada. Segera legalisasi sebelum audit berikutnya.</span></div>`;
+  const ov=DATA.filter(d=>d.s1t&&d.st!=='Lunas'&&daysDiff(d.s1t)>30&&d.th<2).length;
+  if(ov>0)al+=`<div class="al red"><i class="ti ti-alarm"></i><span><strong>${ov} penyedia</strong> sudah menerima SP1 lebih dari 30 hari dan belum naik ke SP2. Kirim SP2 segera.</span></div>`;
+  const nosp=DATA.filter(d=>d.st!=='Lunas'&&d.th===0).length;
+  if(nosp>0)al+=`<div class="al blue"><i class="ti ti-mail-exclamation"></i><span><strong>${nosp} paket</strong> (LHP 2025) belum memiliki SP1. Terbitkan segera setelah LHP diterima resmi.</span></div>`;
+  document.getElementById('dash-alerts').innerHTML=al;
+
+  // Chart status
+  if(cSt)cSt.destroy();
+  cSt=new Chart(document.getElementById('cStatus'),{type:'doughnut',data:{labels:['Belum Setor','Cicilan','Lunas'],datasets:[{data:[bs,cc,lunas],backgroundColor:['#e02424','#d97706','#057a55'],borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},cutout:'62%'}});
+  document.getElementById('leg-status').innerHTML=`<span><span class="legdot" style="background:#e02424"></span>Belum Setor (${bs})</span><span><span class="legdot" style="background:#d97706"></span>Cicilan (${cc})</span><span><span class="legdot" style="background:#057a55"></span>Lunas (${lunas})</span>`;
+
+  // Chart sumber
+  const sbs=['LKPD 2023','PDTT 2024','LKPD 2024','LKPD 2025'];
+  const sbSisa=sbs.map(s=>Math.round(DATA.filter(d=>d.sb===s).reduce((a,d)=>a+getSisa(d),0)/1000000));
+  if(cSb)cSb.destroy();
+  cSb=new Chart(document.getElementById('cSumber'),{type:'bar',data:{labels:sbs,datasets:[{data:sbSisa,backgroundColor:['#3b82f6','#f59e0b','#8b5cf6','#ef4444'],borderWidth:0,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{font:{size:10}}},y:{ticks:{callback:v=>v+'jt',font:{size:10}}}}}});
+
+  // Top 10
+  const top=[...DATA].filter(d=>getSisa(d)>0).sort((a,b)=>getSisa(b)-getSisa(a)).slice(0,10);
+  const h=Math.max(260,top.length*40+80);
+  document.getElementById('c10wrap').style.height=h+'px';
+  if(cT10)cT10.destroy();
+  cT10=new Chart(document.getElementById('cTop10'),{type:'bar',
+    data:{labels:top.map(d=>d.py.replace('CV. ','').replace('PT. ',' PT.').slice(0,24)),
+    datasets:[{data:top.map(d=>Math.round(getSisa(d)/1000000)),backgroundColor:top.map(d=>d.kl==='A'?'#e02424':d.kl==='B'?'#d97706':'#3b82f6'),borderWidth:0,borderRadius:3}]},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>'Rp '+ctx.raw.toLocaleString('id-ID')+' juta'}}},scales:{x:{ticks:{callback:v=>v+'jt',font:{size:10}}},y:{ticks:{font:{size:11}}}}}});
+
+  // Tabel kritis
+  const kr=[...DATA].filter(d=>d.st!=='Lunas').sort((a,b)=>getSisa(b)-getSisa(a)).slice(0,8);
+  document.getElementById('tbl-kritis').innerHTML=kr.map(d=>{
+    const si=getSisa(d),p=pct(getSetor(d),d.tm),rc=d.kl==='A'?'rr':d.kl==='B'?'ra':'';
+    return`<tr class="${rc}"><td><strong>${d.py}</strong></td><td style="font-size:11px;max-width:200px">${d.nm.slice(0,55)}${d.nm.length>55?'…':''}</td><td>${d.sb}</td><td class="nr">${rp(d.tm)}</td><td class="nr" style="color:var(--red);font-weight:700">${rp(si)}</td><td><div class="pb" style="width:70px"><div class="pbf" style="width:${p}%;background:${p<20?'#e02424':p<60?'#d97706':'#057a55'}"></div></div><span style="font-size:10px">${p}%</span></td><td>${thDots(d.th)}</td><td>${stBadge(d.st)}</td><td><div class="ab"><button class="ib e" onclick="openEdit(${d.id})" title="Edit"><i class="ti ti-edit"></i></button><button class="ib" onclick="openHist(${d.id})" title="Histori"><i class="ti ti-coins"></i></button></div></td></tr>`;
+  }).join('');
+}
+
+// ── SEMUA DATA ──
+function rSemua(){
+  const q=(document.getElementById('sq').value||'').toLowerCase();
+  const fs=document.getElementById('fSumber').value;
+  const fst=document.getElementById('fStatus').value;
+  const fk=document.getElementById('fKelompok').value;
+  const rows=DATA.filter(d=>{
+    if(q&&!d.nm.toLowerCase().includes(q)&&!d.py.toLowerCase().includes(q))return false;
+    if(fs&&d.sb!==fs)return false;
+    if(fst&&d.st!==fst)return false;
+    if(fk&&d.kl!==fk)return false;
+    return true;
+  });
+  document.getElementById('tbl-semua').innerHTML=rows.map((d,i)=>{
+    const st=getSetor(d),si=getSisa(d),p=pct(st,d.tm),rc=d.st==='Belum Setor'?'rr':d.st==='Cicilan'?'ra':'';
+    return`<tr class="${rc}"><td>${i+1}</td><td><strong>${d.py}</strong><br>${klBadge(d.kl)}</td><td style="font-size:11px;max-width:200px">${d.nm}</td><td>${d.sb}</td><td style="font-size:11px">${d.ppk||'—'}</td><td class="nr">${rp(d.tm)}</td><td class="nr">${rp(st)}</td><td class="nr" style="color:${si>0?'var(--red)':'var(--green)'};font-weight:700">${rp(si)}</td><td><div class="pb" style="width:55px"><div class="pbf" style="width:${p}%;background:${p===100?'#057a55':p>50?'#d97706':'#e02424'}"></div></div><span style="font-size:10px">${p}%</span></td><td>${thBadge(d.th)}</td><td>${stBadge(d.st)}</td><td><div class="ab"><button class="ib e" onclick="openEdit(${d.id})" title="Edit"><i class="ti ti-edit"></i></button><button class="ib" onclick="openHist(${d.id})" title="Histori"><i class="ti ti-coins"></i></button><button class="ib d" onclick="konfirmHapus(${d.id})" title="Hapus"><i class="ti ti-trash"></i></button></div></td></tr>`;
+  }).join('');
+  document.getElementById('cnt-semua').textContent=`Menampilkan ${rows.length} dari ${DATA.length} paket`;
+}
+
+// ── BELUM SETOR ──
+function rBelum(){
+  const rows=DATA.filter(d=>d.st==='Belum Setor');
+  const nosp=rows.filter(d=>d.th===0).length;
+  document.getElementById('al-belum').innerHTML=nosp>0?`<div class="al red" style="margin-bottom:10px"><i class="ti ti-alert-circle"></i><span><strong>${nosp} paket</strong> belum memiliki SP sama sekali. Kirim SP1 segera.</span></div>`:'';
+  document.getElementById('tbl-belum').innerHTML=rows.map((d,i)=>{
+    const days=daysDiff(d.s1t);
+    const ov=d.s1t&&days>30;
+    return`<tr class="${ov?'rr':''}"><td>${i+1}</td><td><strong>${d.py}</strong></td><td style="font-size:11px;max-width:200px">${d.nm.slice(0,60)}${d.nm.length>60?'…':''}</td><td>${d.sb}</td><td class="nr" style="color:var(--red);font-weight:700">${rp(d.tm)}</td><td>${thBadge(d.th)}</td><td>${fmtD(d.s1t)}</td><td style="${ov?'color:var(--red);font-weight:700':''}">${d.s1t?days+' hari':'—'}</td><td style="font-size:11px">${reko(d)}</td><td><button class="ib e" onclick="openEdit(${d.id})" title="Edit"><i class="ti ti-edit"></i></button></td></tr>`;
+  }).join('');
+}
+
+// ── CICILAN BERJALAN ──
+function rCicilan(){
+  const rows=DATA.filter(d=>d.st==='Cicilan');
+  const tanpa=rows.filter(d=>!d.pj).length;
+  document.getElementById('al-cicilan').innerHTML=tanpa>0?`<div class="al amber"><i class="ti ti-file-off"></i><span><strong>${tanpa} penyedia</strong> mencicil tanpa perjanjian angsuran resmi. Segera buat dan tandatangani perjanjian bermeterai.</span></div>`:'';
+  document.getElementById('tbl-cicilan').innerHTML=rows.map((d,i)=>{
+    const st=getSetor(d),si=getSisa(d),p=pct(st,d.tm);
+    const lc=d.ci&&d.ci.length?d.ci[d.ci.length-1]:null;
+    return`<tr class="${!d.pj?'ra':''}"><td>${i+1}</td><td><strong>${d.py}</strong></td><td style="font-size:11px;max-width:180px">${d.nm.slice(0,55)}…</td><td class="nr">${rp(d.tm)}</td><td class="nr" style="color:var(--green)">${rp(st)}</td><td class="nr" style="color:var(--red);font-weight:700">${rp(si)}</td><td><div class="pb" style="width:80px"><div class="pbf" style="width:${p}%;background:${p>70?'#057a55':'#d97706'}"></div></div><span style="font-size:10px">${p}%</span></td><td style="font-size:11px">${lc?fmtD(lc.t)+' ('+rp(lc.j)+')':'—'}</td><td>${d.pj?'<span class="b b-green">Ada</span>':'<span class="b b-red">Belum Ada</span>'}</td><td><div class="ab"><button class="ib e" onclick="openEdit(${d.id})" title="Edit"><i class="ti ti-edit"></i></button><button class="ib" onclick="openHist(${d.id})" title="Histori"><i class="ti ti-list-details"></i></button></div></td></tr>`;
+  }).join('');
+}
+
+// ── LHP 2025 ──
+function rLhp25(){
+  const rows=DATA.filter(d=>d.sb==='LKPD 2025');
+  document.getElementById('tbl-lhp25').innerHTML=rows.map((d,i)=>{
+    return`<tr><td>${i+1}</td><td><strong>${d.py}</strong></td><td style="font-size:11px;max-width:220px">${d.nm.slice(0,60)}${d.nm.length>60?'…':''}</td><td style="font-size:11px">${d.kat}</td><td class="nr" style="font-weight:700">${rp(d.tm)}</td><td>${stBadge(d.st)}</td><td>${d.s1t?'<span class="b b-green">'+fmtD(d.s1t)+'</span>':'<span class="b b-red">Belum</span>'}</td><td style="font-size:11px;color:var(--tx2)">${d.ct||'—'}</td><td><button class="ib e" onclick="openEdit(${d.id})" title="Edit"><i class="ti ti-edit"></i></button></td></tr>`;
+  }).join('');
+}
+
+// ── EDIT MODAL ──
+function openEdit(id){
+  const d=DATA.find(x=>x.id===id);if(!d)return;
+  editId=id;
+  tempCi=[...(d.ci||[]).map(c=>({...c}))];
+  document.getElementById('mo-edit-ttl').textContent='Edit: '+d.py;
+  const sv=(el,v)=>{const e=document.getElementById(el);if(e)e.value=v!==null&&v!==undefined?v:'';};
+  sv('eNm',d.nm);sv('ePy',d.py);sv('eNk',d.nk);sv('eVk',d.vk);sv('ePpk',d.ppk);sv('ePptk',d.pptk);
+  sv('eSb',d.sb);sv('eJn',d.jn);sv('eKat',d.kat);sv('eTA',d.ta);
+  sv('eTm',d.tm);sv('eSt',d.st);sv('ePj',d.pj?'1':'0');sv('eKl',d.kl);
+  sv('eS1n',d.s1n);sv('eS1t',d.s1t);sv('eS2n',d.s2n);sv('eS2t',d.s2t);
+  sv('eS3n',d.s3n);sv('eS3t',d.s3t);sv('eTh',d.th);sv('eCt',d.ct);
+  rCiList();
+  document.getElementById('mo-edit').classList.add('open');
+}
+function rCiList(){
+  document.getElementById('ci-list').innerHTML=tempCi.map((c,i)=>`
+    <div class="ci-row">
+      <input type="date" value="${c.t||''}" oninput="updCi(${i},'t',this.value)">
+      <input type="number" value="${c.j||''}" placeholder="Jumlah (Rp)" oninput="updCi(${i},'j',+this.value)">
+      <input type="text" value="${c.b||''}" placeholder="No. bukti setor" oninput="updCi(${i},'b',this.value)">
+      <button class="ci-del" onclick="delCi(${i})" title="Hapus baris"><i class="ti ti-x"></i></button>
+    </div>`).join('');
+  updCiTot();
+}
+function addCi(){tempCi.push({t:today(),j:0,b:''});rCiList();}
+function updCi(i,f,v){if(tempCi[i])tempCi[i][f]=v;updCiTot();}
+function delCi(i){tempCi.splice(i,1);rCiList();}
+function updCiTot(){document.getElementById('ciTot').textContent=rp(tempCi.reduce((s,c)=>s+(+c.j||0),0));}
+async function saveEdit(){
+  const idx=DATA.findIndex(x=>x.id===editId);if(idx<0)return;
+  const g=id=>document.getElementById(id).value;
+  DATA[idx]={...DATA[idx],nm:g('eNm'),py:g('ePy'),nk:g('eNk'),vk:+g('eVk'),ppk:g('ePpk'),pptk:g('ePptk'),sb:g('eSb'),jn:g('eJn'),kat:g('eKat'),ta:g('eTA'),tm:+g('eTm'),st:g('eSt'),pj:+g('ePj'),kl:g('eKl'),s1n:g('eS1n'),s1t:g('eS1t'),s2n:g('eS2n'),s2t:g('eS2t'),s3n:g('eS3n'),s3t:g('eS3t'),th:+g('eTh'),ct:g('eCt'),ci:[...tempCi]};
+  await save();closeMo('mo-edit');toast('Perubahan disimpan');
+  const cur=document.querySelector('.page.on').id.replace('pg-','');
+  const renders={dashboard:rDash,semua:rSemua,belum:rBelum,cicilan:rCicilan,lhp25:rLhp25};
+  if(renders[cur])renders[cur]();
+}
+
+// ── HISTORI ──
+function openHist(id){
+  const d=DATA.find(x=>x.id===id);if(!d)return;
+  const st=getSetor(d),si=getSisa(d);
+  let h=`<p style="font-weight:700;font-size:13px">${d.py}</p><p style="font-size:11px;color:var(--tx2);margin-bottom:12px">${d.nm}</p>`;
+  if(!d.ci||!d.ci.length){h+='<p style="color:var(--tx3);font-size:13px">Belum ada catatan setoran.</p>';}
+  else{
+    h+=`<table style="width:100%;font-size:12px;border-collapse:collapse"><thead><tr style="background:var(--sur2)"><th style="padding:6px 8px;border-bottom:1px solid var(--bd);text-align:left">No</th><th style="padding:6px 8px;border-bottom:1px solid var(--bd);text-align:left">Tanggal</th><th style="padding:6px 8px;border-bottom:1px solid var(--bd);text-align:right">Jumlah (Rp)</th><th style="padding:6px 8px;border-bottom:1px solid var(--bd);text-align:left">No. Bukti Setor</th></tr></thead><tbody>`;
+    d.ci.forEach((c,i)=>{h+=`<tr><td style="padding:5px 8px">${i+1}</td><td style="padding:5px 8px">${fmtD(c.t)}</td><td style="padding:5px 8px;text-align:right;font-weight:700">${rp(c.j)}</td><td style="padding:5px 8px;color:var(--tx2)">${c.b||'—'}</td></tr>`;});
+    h+=`</tbody></table>`;
+  }
+  h+=`<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--bd);display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-size:12px">
+    <div><div style="font-size:10px;color:var(--tx3);margin-bottom:2px">Total Temuan</div><strong>${rp(d.tm)}</strong></div>
+    <div><div style="font-size:10px;color:var(--tx3);margin-bottom:2px">Sudah Disetor</div><strong style="color:var(--green)">${rp(st)}</strong></div>
+    <div><div style="font-size:10px;color:var(--tx3);margin-bottom:2px">Sisa Piutang</div><strong style="color:var(--red)">${rp(si)}</strong></div>
+  </div>`;
+  document.getElementById('mo-hb').innerHTML=h;
+  document.getElementById('mo-hist').classList.add('open');
+}
+
+// ── TAMBAH ──
+async function simpanBaru(){
+  const g=id=>document.getElementById(id).value;
+  if(!g('tNm')||!g('tPy')){toast('Nama paket dan penyedia wajib diisi','err');return;}
+  const newId=DATA.length?Math.max(...DATA.map(d=>d.id))+1:1;
+  DATA.push({id:newId,nm:g('tNm'),py:g('tPy'),nk:g('tNk'),vk:+g('tVk'),ppk:g('tPpk'),pptk:g('tPptk'),sb:g('tSb'),jn:g('tJn'),kat:g('tKat'),ta:g('tTA'),tm:+g('tTm'),st:g('tSt'),pj:+g('tPj'),kl:g('tKl'),ci:[],s1n:g('tS1n'),s1t:g('tS1t'),s2n:g('tS2n'),s2t:g('tS2t'),s3n:g('tS3n'),s3t:g('tS3t'),th:+g('tTh'),ct:g('tCt')});
+  await save();toast('Paket berhasil ditambahkan');resetForm();
+}
+function resetForm(){['tNm','tPy','tNk','tVk','tPpk','tPptk','tTm','tS1n','tS1t','tS2n','tS2t','tS3n','tS3t','tCt'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});}
+
+// ── HAPUS ──
+function konfirmHapus(id){
+  hapusId=id;const d=DATA.find(x=>x.id===id);
+  document.getElementById('hNm').textContent=(d?d.py+' — '+d.nm.slice(0,60):'');
+  document.getElementById('mo-hapus').classList.add('open');
+}
+async function doHapus(){DATA=DATA.filter(d=>d.id!==hapusId);await save();closeMo('mo-hapus');toast('Data dihapus');rSemua();}
+
+// ── MODAL UTIL ──
+function closeMo(id){document.getElementById(id).classList.remove('open');}
+document.querySelectorAll('.mo').forEach(m=>m.addEventListener('click',function(e){if(e.target===this)this.classList.remove('open');}));
+
+// ── EXPORT EXCEL ──
+function safeDownload(wb, filename){
+  try{
+    var wbout=XLSX.write(wb,{bookType:"xlsx",type:"array"});
+    var blob=new Blob([wbout],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement("a");
+    a.href=url; a.download=filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function(){URL.revokeObjectURL(url);document.body.removeChild(a);},1500);
+  }catch(e2){
+    alert("Gagal membuat file: "+e2.message);
+  }
+}
+function encCol(n){var s="";for(n++;n>0;n=Math.floor((n-1)/26))s=String.fromCharCode((n-1)%26+65)+s;return s;}
+function dlExcel(){
+  try{
+    var wb=XLSX.utils.book_new();
+    var ws={};
+    var hdr=["No","Nama Paket","Penyedia Jasa","No Kontrak","Nilai Kontrak","Nama PPK","Nama PPTK","Sumber Temuan","Jenis Temuan","Kategori Belanja","Tahun Anggaran","Nilai Temuan","Sudah Disetor","Sisa Piutang","Persen Lunas","Status","Perjanjian","Kelompok","Tahap SP","No SP1","Tgl SP1","No SP2","Tgl SP2","No SP3","Tgl SP3","Histori Cicilan","Catatan"];
+    for(var h=0;h<hdr.length;h++) ws[encCol(h)+"1"]={v:hdr[h],t:"s"};
+    for(var i=0;i<DATA.length;i++){
+      var d=DATA[i];
+      var st=getSetor(d); var si=getSisa(d);
+      var row=[
+        String(i+1),
+        String(d.nm||""),
+        String(d.py||""),
+        String(d.nk||""),
+        String(d.vk||0),
+        String(d.ppk||""),
+        String(d.pptk||""),
+        String(d.sb||""),
+        String(d.jn||""),
+        String(d.kat||""),
+        String(d.ta||""),
+        String(d.tm||0),
+        String(st),
+        String(si),
+        String(pct(st,d.tm))+"%",
+        String(d.st||""),
+        d.pj?"Ada":"Belum Ada",
+        String(d.kl||""),
+        (["Belum SP","SP1","SP2","SP3","Eskalasi"][d.th]||""),
+        String(d.s1n||""),
+        String(d.s1t||""),
+        String(d.s2n||""),
+        String(d.s2t||""),
+        String(d.s3n||""),
+        String(d.s3t||""),
+        (d.ci||[]).map(function(c){return fmtD(c.t)+": "+rp(c.j)+(c.b?" ("+c.b+")":"");}).join(" | "),
+        String(d.ct||"")
+      ];
+      var r=String(i+2);
+      for(var c=0;c<row.length;c++) ws[encCol(c)+r]={v:row[c],t:"s"};
+    }
+    ws["!ref"]="A1:"+encCol(hdr.length-1)+String(DATA.length+1);
+    XLSX.utils.book_append_sheet(wb,ws,"Monitoring");
+    var ws2={};
+    var sum=DATA.reduce(function(a,d){a.t+=d.tm;a.s+=getSetor(d);a.i+=getSisa(d);return a;},{t:0,s:0,i:0});
+    var s2rows=[["Item","Nilai"],["Total Temuan",String(sum.t)],["Total Disetor",String(sum.s)],["Sisa Piutang",String(sum.i)],["Jumlah Paket",String(DATA.length)],["Belum Setor",String(DATA.filter(function(d){return d.st==="Belum Setor";}).length)],["Cicilan",String(DATA.filter(function(d){return d.st==="Cicilan";}).length)],["Lunas",String(DATA.filter(function(d){return d.st==="Lunas";}).length)],["Tanggal Export",new Date().toLocaleDateString("id-ID")]];
+    for(var r2=0;r2<s2rows.length;r2++){ws2["A"+String(r2+1)]={v:s2rows[r2][0],t:"s"};ws2["B"+String(r2+1)]={v:s2rows[r2][1],t:"s"};}
+    ws2["!ref"]="A1:B"+String(s2rows.length);
+    XLSX.utils.book_append_sheet(wb,ws2,"Ringkasan");
+    safeDownload(wb,"Monitoring_Temuan_BPK_BM_"+new Date().toISOString().slice(0,10)+".xlsx");
+    toast("File Excel berhasil diunduh");
+  }catch(err){
+    alert("Gagal download Excel: "+err.message);
+  }
+}
+
+
+function dlTemplate(){
+  try{
+    var wb=XLSX.utils.book_new();
+    var ws={};
+    var cols=["Nama Paket","Penyedia Jasa","No Kontrak","Nilai Kontrak","Nama PPK","Nama PPTK","Sumber Temuan","Jenis Temuan","Kategori Belanja","Tahun Anggaran","Nilai Temuan","Status Pembayaran","Perjanjian Angsuran","Kelompok","Tahap SP","No SP1","Tgl SP1","No SP2","Tgl SP2","Catatan"];
+    var contoh=["(wajib) Rehabilitasi Jalan Karangpandan-Blora","(wajib) CV. Redjo Pawiro","05.9/MK/PPK.1/XI/2025","4351337879","Nama PPK","Nama PPTK","LKPD 2025","Kurang Volume","Belanja Modal Jalan","2025","192082000","Belum Setor","Belum Ada","C","Belum SP","","","","",""];
+    for(var c=0;c<cols.length;c++){
+      ws[encCol(c)+"1"]={v:cols[c],t:"s"};
+      ws[encCol(c)+"2"]={v:contoh[c],t:"s"};
+    }
+    ws["!ref"]="A1:"+encCol(cols.length-1)+"2";
+    XLSX.utils.book_append_sheet(wb,ws,"Template");
+    safeDownload(wb,"Template_Import_Temuan_BPK.xlsx");
+    toast("Template berhasil diunduh");
+  }catch(err){
+    alert("Error template: "+err.message);
+  }
+}
+
+function importExcel(inp){
+  const file=inp.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=async function(e){
+    try{
+      const wb=XLSX.read(e.target.result,{type:"array"});
+      const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+      let add=0,upd=0;
+      rows.forEach(function(r){
+        if(!r["Nama Paket"]||!r["Penyedia Jasa"])return;
+        const ex=DATA.find(d=>d.nm===r["Nama Paket"]&&d.py===r["Penyedia Jasa"]);
+        const thIdx=["Belum SP","SP1","SP2","SP3","Eskalasi"].indexOf(r["Tahap SP"]||"Belum SP");
+        var nk=r["No Kontrak"]||r["No. Kontrak"]||"";
+        var vk=+(r["Nilai Kontrak"]||r["Nilai Kontrak Rp"]||0);
+        var tm=+(r["Nilai Temuan"]||r["Nilai Temuan Rp"]||0);
+        var s1n=r["No SP1"]||r["No. SP1"]||"";
+        var s1t=r["Tgl SP1"]||"";
+        var s2n=r["No SP2"]||r["No. SP2"]||"";
+        var s2t=r["Tgl SP2"]||"";
+        const ob={nm:r["Nama Paket"],py:r["Penyedia Jasa"],nk:nk,
+          vk:vk,ppk:r["Nama PPK"]||"",pptk:r["Nama PPTK"]||"",
+          sb:r["Sumber Temuan"]||"LKPD 2025",jn:r["Jenis Temuan"]||"Kurang Volume",
+          kat:r["Kategori Belanja"]||"Belanja Modal Jalan",ta:String(r["Tahun Anggaran"]||"2025"),
+          tm:tm,st:r["Status Pembayaran"]||"Belum Setor",
+          pj:r["Perjanjian Angsuran"]==="Ada"?1:0,kl:r["Kelompok"]||"C",
+          s1n:s1n,s1t:s1t,s2n:s2n,s2t:s2t,
+          s3n:"",s3t:"",th:thIdx<0?0:thIdx,ct:r["Catatan"]||""};
+        if(ex){Object.assign(ex,ob);upd++;}
+        else{DATA.push({id:DATA.length?Math.max.apply(null,DATA.map(d=>d.id))+1:1,ci:[],...ob});add++;}
+      });
+      document.getElementById("import-result").innerHTML=`<div class="al blue"><i class="ti ti-check"></i><span>Import selesai: <strong>${add} paket baru</strong> ditambahkan, <strong>${upd} paket</strong> diperbarui.</span></div>`;
+      await save();
+      toast("Import berhasil: "+add+" baru, "+upd+" diperbarui");
+    }catch(err){
+      document.getElementById("import-result").innerHTML=`<div class="al red"><i class="ti ti-x"></i><span>Gagal membaca file: ${err.message}. Pastikan format sesuai template.</span></div>`;
+    }
+  };
+  reader.readAsArrayBuffer(file);inp.value="";
+}
+function dropFile(e){
+  e.preventDefault();
+  document.getElementById('uz').classList.remove('drag');
+  const f=e.dataTransfer.files[0];
+  if(f&&(f.name.endsWith('.xlsx')||f.name.endsWith('.xls'))){const dt=new DataTransfer();dt.items.add(f);document.getElementById('fi').files=dt.files;importExcel(document.getElementById('fi'));}
+}
+
+// ── TOAST ──
+function toast(msg,type){const t=document.getElementById('toast');t.textContent=msg;t.style.background=type==='err'?'#e02424':'#1c2030';t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2800);}
+
+
+
+// ═══════════════════════════════════════════════════════════
+// FIREBASE REALTIME SYNC — Monitoring Temuan BPK Bina Marga
+// ═══════════════════════════════════════════════════════════
+
+const FB_CFG_KEY = 'bpk_firebase_cfg';
+const FB_COLLECTION = 'temuan_bpk';
+const FB_DOC = 'data_bina_marga';
+
+let fbApp = null, fbDb = null, fbUnsubscribe = null;
+let fbReady = false, fbConfigured = false;
+
+// ── DEFAULT DATA ──
+const DEFAULT_DATA = [
+    {id:1,nm:'Penanganan Long Segment Jl. Bendungan–Banjarharjo',py:'CV. Central Karya',nk:'',vk:4142232000,ppk:'',pptk:'',sb:'LKPD 2023',jn:'Kurang Volume',kat:'Belanja Modal Jalan',ta:'2023',tm:426683000,st:'Cicilan',pj:0,kl:'B',ci:[{t:'2024-06-26',j:60000000,b:''},{t:'2024-09-19',j:50000000,b:''},{t:'2024-10-20',j:40000000,b:''},{t:'2024-10-27',j:75000000,b:''}],s1n:'',s1t:'',s2n:'',s2t:'',s3n:'',s3t:'',th:1,ct:'Cicilan berjalan sejak Juni 2024. Perjanjian angsuran formal belum ada — segera legalisasi.'},
+    {id:2,nm:'Penanganan Long Segment Jl. Beji–Pojok, Kec. Tasikmadu',py:'CV. Kedaton',nk:'',vk:7234084000,ppk:'',pptk:'',sb:'PDTT 2024',jn:'Kurvol + Tidak Sesuai Spek',kat:'Belanja Modal Jalan',ta:'2024',tm:345615000,st:'Cicilan',pj:0,kl:'B',ci:[{t:'2025-12-30',j:18115000,b:''}],s1n:'900/94.6.1/V/2026',s1t:'2026-05-13',s2n:'',s2t:'',s3n:'',s3t:'',th:1,ct:'Baru 5% lunas. Perjanjian angsuran belum ada.'},
+    {id:3,nm:'Long Segment Jl. Klodran–Sawahan, Kec. Colomadu',py:'CV. Yogya Resita',nk:'',vk:2041296000,ppk:'',pptk:'',sb:'PDTT 2024',jn:'Kurang Volume',kat:'Belanja Modal Jalan',ta:'2024',tm:10296000,st:'Belum Setor',pj:0,kl:'A',ci:[],s1n:'900/84.6.66/V/2026',s1t:'2026-05-13',s2n:'',s2t:'',s3n:'',s3t:'',th:1,ct:'Surat pemberitahuan 13 Mei 2026.'},
+    {id:4,nm:'Long Segment Jl. Jambangan–Pendem, Kec. Mojogedang',py:'CV. Karya Agung',nk:'',vk:10714124000,ppk:'',pptk:'',sb:'PDTT 2024',jn:'Kurvol + Tidak Sesuai Spek',kat:'Belanja Modal Jalan',ta:'2024',tm:309429000,st:'Cicilan',pj:0,kl:'B',ci:[{t:'2025-05-28',j:25000000,b:''},{t:'2025-07-28',j:50000000,b:''},{t:'2026-01-06',j:50000000,b:''}],s1n:'900/84.6.9/V/2026',s1t:'2026-05-13',s2n:'',s2t:'',s3n:'',s3t:'',th:1,ct:'3 kali cicilan. Sisa masih Rp 184 juta.'},
+    {id:5,nm:'Pemeliharaan Jalan Beningsari–Munggur',py:'CV. Central Karya',nk:'',vk:188297000,ppk:'',pptk:'',sb:'PDTT 2024',jn:'Kurang Volume',kat:'Belanja Modal Jalan',ta:'2024',tm:5188000,st:'Belum Setor',pj:0,kl:'A',ci:[],s1n:'900/94.6.1/V/2026',s1t:'2026-05-13',s2n:'',s2t:'',s3n:'',s3t:'',th:1,ct:'Surat pemberitahuan 13 Mei 2026.'},
+    {id:6,nm:'Pemeliharaan Jalan Ronggo Warsito, Kec. Karanganyar',py:'CV. Ganefo',nk:'',vk:188670000,ppk:'',pptk:'',sb:'PDTT 2024',jn:'Kurang Volume',kat:'Belanja Modal Jalan',ta:'2024',tm:12113000,st:'Belum Setor',pj:0,kl:'A',ci:[],s1n:'900/84.6.8/V/2026',s1t:'2026-05-13',s2n:'',s2t:'',s3n:'',s3t:'',th:1,ct:'Juga memiliki tunggakan denda LKPD 2023.'},
+    {id:7,nm:'Pengaspalan Jalan Dukuh Rt.01/Rw.05–Pandananom',py:'CV. Sami Asih',nk:'',vk:142556000,ppk:'',pptk:'',sb:'PDTT 2024',jn:'Kurang Volume',kat:'Belanja Modal Jalan',ta:'2024',tm:8761000,st:'Cicilan',pj:0,kl:'B',ci:[{t:'2025-08-21',j:2700000,b:''},{t:'2026-01-07',j:2500000,b:''}],s1n:'900/84.6.6/V/2026',s1t:'2026-05-13',s2n:'',s2t:'',s3n:'',s3t:'',th:1,ct:'Hampir lunas. Dorong pelunasan sekaligus.'},
+    {id:8,nm:'Pembangunan Talud Jalan Matesih–Tegalgede',py:'CV. Sosro Karya',nk:'',vk:1886851000,ppk:'',pptk:'',sb:'PDTT 2024',jn:'Kurang Volume',kat:'Belanja Modal Jalan',ta:'2024',tm:45835000,st:'Belum Setor',pj:0,kl:'A',ci:[],s1n:'900/84.6.13/V/2026',s1t:'2026-05-13',s2n:'',s2t:'',s3n:'',s3t:'',th:1,ct:'TIDAK KOOPERATIF. Tidak ada kontrak aktif 2 tahun terakhir. Pertimbangkan eskalasi cepat ke TP-TGR.'},
+    {id:9,nm:'Long Segment Jl. Dayu–Pandananom, Kec. Ngargoyoso',py:'CV. Mustika Bukit Jajar',nk:'',vk:1868023000,ppk:'',pptk:'',sb:'PDTT 2024',jn:'Kurvol + Tidak Sesuai Spek',kat:'Belanja Modal Jalan',ta:'2024',tm:79418000,st:'Cicilan',pj:0,kl:'B',ci:[{t:'2025-12-30',j:11918000,b:''}],s1n:'900/84.6.5/V/2026',s1t:'2026-05-13',s2n:'',s2t:'',s3n:'',s3t:'',th:1,ct:'Baru 15%. Perjanjian angsuran formal belum ada.'},
+    {id:10,nm:'Rekonstruksi Jl. Ngringo–Perumnas Palur (Kurvol+Denda)',py:'CV. Sosro Karya',nk:'',vk:0,ppk:'',pptk:'',sb:'LKPD 2024',jn:'Kelebihan Pembayaran',kat:'Belanja Modal Jalan',ta:'2024',tm:183805000,st:'Belum Setor',pj:0,kl:'A',ci:[],s1n:'900/84.6.4/V/2026',s1t:'2026-05-13',s2n:'',s2t:'',s3n:'',s3t:'',th:1,ct:'Tidak kooperatif. Total kewajiban CV Sosro Karya = Rp 229,64 juta.'},
+    {id:11,nm:'Rekonstruksi Jalan Kadipekso–Jenawi (Denda)',py:'CV. Jack Kindo',nk:'',vk:4632963000,ppk:'',pptk:'',sb:'LKPD 2023',jn:'Denda Keterlambatan',kat:'Belanja Modal Jalan',ta:'2023',tm:20869000,st:'Belum Setor',pj:0,kl:'A',ci:[],s1n:'',s1t:'',s2n:'',s2t:'',s3n:'',s3t:'',th:0,ct:'Belum ada respons sejak temuan.'},
+    {id:12,nm:'Pelebaran Jalan Trengguli–Lempong (Denda)',py:'CV. Ganefo',nk:'',vk:0,ppk:'',pptk:'',sb:'LKPD 2023',jn:'Denda Keterlambatan',kat:'Belanja Modal Jalan',ta:'2023',tm:34639000,st:'Belum Setor',pj:0,kl:'A',ci:[],s1n:'',s1t:'',s2n:'',s2t:'',s3n:'',s3t:'',th:0,ct:'Belum ada respons. Terpisah dari temuan PDTT 2024.'},
+    {id:13,nm:'Pelebaran Jalan Karan–Bumi Perkemahan (Denda)',py:'CV. Anugerah Sankara Rizki',nk:'',vk:0,ppk:'',pptk:'',sb:'LKPD 2023',jn:'Denda Keterlambatan',kat:'Belanja Modal Jalan',ta:'2023',tm:482127000,st:'Cicilan',pj:0,kl:'B',ci:[{t:'2025-10-31',j:40000000,b:''},{t:'2025-12-22',j:96425000,b:''}],s1n:'',s1t:'',s2n:'',s2t:'',s3n:'',s3t:'',th:1,ct:'Sisa denda terbesar. Perjanjian angsuran belum ada.'},
+    {id:14,nm:'Rehabilitasi Jalan Karangpandan–Blora (Ruas 89)',py:'CV. Redjo Pawiro',nk:'05.9/MK/PPK.1/XI/2025',vk:4351337879,ppk:'',pptk:'',sb:'LKPD 2025',jn:'Kurang Volume',kat:'Belanja Modal Jalan',ta:'2025',tm:192082000,st:'Belum Setor',pj:0,kl:'C',ci:[],s1n:'',s1t:'',s2n:'',s2t:'',s3n:'',s3t:'',th:0,ct:'Kooperatif — paket lain sudah lunas. Komunikasi informal sudah dilakukan.'},
+    {id:15,nm:'Rehabilitasi Jalan Karanganyar–Ngadiluwih (Ruas 27)',py:'CV. Anugrah Lima Utama',nk:'SP/PAKET-5.2.PPK/III/2025',vk:3685625000,ppk:'',pptk:'',sb:'LKPD 2025',jn:'Kurang Volume',kat:'Belanja Modal Jalan',ta:'2025',tm:67464000,st:'Belum Setor',pj:0,kl:'C',ci:[],s1n:'',s1t:'',s2n:'',s2t:'',s3n:'',s3t:'',th:0,ct:''},
+    {id:16,nm:'Rekonstruksi Jalan Palur–Dalon (Ruas 41)',py:'CV. Anugrah Lima Utama',nk:'04.9/MK/PPK.1/X/2025',vk:4718188138,ppk:'',pptk:'',sb:'LKPD 2025',jn:'Kurang Volume',kat:'Belanja Modal Jalan',ta:'2025',tm:148129000,st:'Belum Setor',pj:0,kl:'C',ci:[],s1n:'',s1t:'',s2n:'',s2t:'',s3n:'',s3t:'',th:0,ct:''},
+    {id:17,nm:'Rekonstruksi Jalan Ngangkruk–Jeruksawit (Ruas 24)',py:'PT. Panca Darma Puspa Wira',nk:'02.9/MK/PPK.1/X/2025',vk:14498861493,ppk:'',pptk:'',sb:'LKPD 2025',jn:'Kurang Volume',kat:'Belanja Modal Jalan',ta:'2025',tm:32267000,st:'Belum Setor',pj:0,kl:'C',ci:[],s1n:'',s1t:'',s2n:'',s2t:'',s3n:'',s3t:'',th:0,ct:''},
+    {id:18,nm:'Rekonstruksi Jalan Kebakkramat–Dalon (Ruas 44)',py:'CV. Jaya Sempurna Abadi',nk:'03.9/MK/PPK.1/X/2025',vk:9000581657,ppk:'',pptk:'',sb:'LKPD 2025',jn:'Kurang Volume',kat:'Belanja Modal Jalan',ta:'2025',tm:266485000,st:'Belum Setor',pj:0,kl:'C',ci:[],s1n:'',s1t:'',s2n:'',s2t:'',s3n:'',s3t:'',th:0,ct:'NILAI TERBESAR LHP 2025 — prioritas utama.'},
+    {id:19,nm:'Rehabilitasi Jalan Dalon–Ngrancang (Ruas 37)',py:'CV. Perisai Bangsa',nk:'01.6/MK/PPK.5/X/2025',vk:734826285,ppk:'',pptk:'',sb:'LKPD 2025',jn:'Kurang Volume',kat:'Belanja Modal Jalan',ta:'2025',tm:3469000,st:'Belum Setor',pj:0,kl:'C',ci:[],s1n:'',s1t:'',s2n:'',s2t:'',s3n:'',s3t:'',th:0,ct:''},
+    {id:20,nm:'Rehabilitasi Jalan Ngadiluwih–Matesih (Ruas 142)',py:'CV. Putra Kalingga',nk:'SP/Kons.Ngad-Mtsh.2.PPK/V/2025',vk:4179255000,ppk:'',pptk:'',sb:'LKPD 2025',jn:'Kurang Volume',kat:'Belanja Modal Jalan',ta:'2025',tm:77099000,st:'Belum Setor',pj:0,kl:'C',ci:[],s1n:'',s1t:'',s2n:'',s2t:'',s3n:'',s3t:'',th:0,ct:'3 paket sekaligus (Ruas 142+Jumapolo+Ruas 157), total Rp 260 juta.'},
+    {id:21,nm:'Peningkatan Jalan Jumapolo–Jumantono',py:'CV. Putra Kalingga',nk:'EP-01K2KZHBA1P3WQM9K2Y4H7HHCD',vk:5501983000,ppk:'',pptk:'',sb:'LKPD 2025',jn:'Kurang Volume',kat:'Belanja Modal Jalan',ta:'2025',tm:72981000,st:'Belum Setor',pj:0,kl:'C',ci:[],s1n:'',s1t:'',s2n:'',s2t:'',s3n:'',s3t:'',th:0,ct:''},
+    {id:22,nm:'Pelebaran Jalan Tlobosempon–Matesih (Ruas 157)',py:'CV. Putra Kalingga',nk:'02.7/MK/PPK.4/XI/2025',vk:5315184828,ppk:'',pptk:'',sb:'LKPD 2025',jn:'Kurang Volume',kat:'Belanja Modal Jalan',ta:'2025',tm:110016000,st:'Belum Setor',pj:0,kl:'C',ci:[],s1n:'',s1t:'',s2n:'',s2t:'',s3n:'',s3t:'',th:0,ct:''},
+    {id:23,nm:'Rehabilitasi Jalan Ombang-ombang–Blumbang & Kalisoro Kemantren (Ruas 128)',py:'CV. Putra Cakra Bersaudara',nk:'01.6/MK/PPK.4/X/2025',vk:5825184789,ppk:'',pptk:'',sb:'LKPD 2025',jn:'Kurang Volume',kat:'Belanja Modal Jalan',ta:'2025',tm:112443000,st:'Belum Setor',pj:0,kl:'C',ci:[],s1n:'',s1t:'',s2n:'',s2t:'',s3n:'',s3t:'',th:0,ct:''},
+    {id:24,nm:'Rehabilitasi Jalan Kerjo–Seloromo (Ruas 100)',py:'CV. Sigra Teknik',nk:'EP.01K3FQ6Z0WNP7A166PBQKS70RD',vk:3714898000,ppk:'',pptk:'',sb:'LKPD 2025',jn:'Kurang Volume',kat:'Belanja Modal Jalan',ta:'2025',tm:181638000,st:'Belum Setor',pj:0,kl:'C',ci:[],s1n:'',s1t:'',s2n:'',s2t:'',s3n:'',s3t:'',th:0,ct:'Pembayaran kontrak baru 90%.'},
+    {id:25,nm:'Rekonstruksi Jalan Sudimoro–Ngargoyoso (Ruas 114)',py:'PT. Triyagan Harmet Perkasa',nk:'06.9/MK/PPK.1/XI/2025',vk:14753711493,ppk:'',pptk:'',sb:'LKPD 2025',jn:'Kurang Volume',kat:'Belanja Modal Jalan',ta:'2025',tm:200115000,st:'Belum Setor',pj:0,kl:'C',ci:[],s1n:'',s1t:'',s2n:'',s2t:'',s3n:'',s3t:'',th:0,ct:'Pembayaran kontrak baru 90%.'},
+    {id:26,nm:'Pemeliharaan Rutin Jalan Lawu – Paket 16 (Barjas)',py:'CV. Mitra Karya Lima',nk:'03.9/MK/PPK.5/X/2025',vk:1809977174,ppk:'',pptk:'',sb:'LKPD 2025',jn:'Kelebihan Pembayaran',kat:'Belanja Barang/Jasa',ta:'2025',tm:28326000,st:'Belum Setor',pj:0,kl:'C',ci:[],s1n:'',s1t:'',s2n:'',s2t:'',s3n:'',s3t:'',th:0,ct:''},
+    {id:27,nm:'Peningkatan Jalan Menuju SMP Bhayangkara',py:'CV. Karya Utama',nk:'',vk:883458000,ppk:'',pptk:'',sb:'LKPD 2025',jn:'Kurang Volume',kat:'Belanja Barang/Jasa',ta:'2025',tm:35768000,st:'Belum Setor',pj:0,kl:'C',ci:[],s1n:'',s1t:'',s2n:'',s2t:'',s3n:'',s3t:'',th:0,ct:''},
+    {id:28,nm:'Rehabilitasi Jalan Gempol–Suruh Kalang',py:'CV. Karya Utama',nk:'',vk:615184000,ppk:'',pptk:'',sb:'LKPD 2025',jn:'Kurang Volume',kat:'Belanja Barang/Jasa',ta:'2025',tm:3323000,st:'Belum Setor',pj:0,kl:'C',ci:[],s1n:'',s1t:'',s2n:'',s2t:'',s3n:'',s3t:'',th:0,ct:''},
+    {id:29,nm:'Rehabilitasi Jalan RW 14 Banaran Jantiharjo',py:'CV. Bumi Anugerah Putra',nk:'',vk:198432000,ppk:'',pptk:'',sb:'LKPD 2025',jn:'Kurang Volume',kat:'Belanja Barang/Jasa',ta:'2025',tm:8138000,st:'Belum Setor',pj:0,kl:'C',ci:[],s1n:'',s1t:'',s2n:'',s2t:'',s3n:'',s3t:'',th:0,ct:''},
+    {id:30,nm:'Rehabilitasi Jalan Tunggul Kalang–Dukuhrejo',py:'CV. Perwita Utami',nk:'',vk:198095000,ppk:'',pptk:'',sb:'LKPD 2025',jn:'Kurang Volume',kat:'Belanja Barang/Jasa',ta:'2025',tm:20784000,st:'Belum Setor',pj:0,kl:'C',ci:[],s1n:'',s1t:'',s2n:'',s2t:'',s3n:'',s3t:'',th:0,ct:''},
+    {id:31,nm:'Pemeliharaan Rutin Jalan Dr. Soeharso – Paket 17 (Barjas)',py:'CV. Perisai Bangsa',nk:'SPK.5/PML.10.2.BM/XI/2025',vk:398480000,ppk:'',pptk:'',sb:'LKPD 2025',jn:'Kurang Volume',kat:'Belanja Barang/Jasa',ta:'2025',tm:38362000,st:'Belum Setor',pj:0,kl:'C',ci:[],s1n:'',s1t:'',s2n:'',s2t:'',s3n:'',s3t:'',th:0,ct:''}
+];
+
+// ── FIREBASE CONFIG STORAGE ──
+function fbGetCfg() {
+  try { return JSON.parse(localStorage.getItem(FB_CFG_KEY) || '{}'); } catch(e) { return {}; }
+}
+function fbSetCfg(cfg) { localStorage.setItem(FB_CFG_KEY, JSON.stringify(cfg)); }
+
+// ── SYNC UI HELPERS ──
+function setSyncBadge(state, text) {
+  const badge = document.getElementById('sync-badge');
+  const txt = document.getElementById('sync-txt');
+  if (!badge || !txt) return;
+  badge.className = 'sync-badge' + (state ? ' ' + state : '');
+  // reapply inline styles since we use id not class
+  if (state === 'syncing') {
+    badge.style.cssText = 'display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:100px;font-size:11px;font-weight:600;background:var(--bluebg);color:var(--bluetx);border:1px solid #bfdbfe;transition:.3s';
+  } else if (state === 'error') {
+    badge.style.cssText = 'display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:100px;font-size:11px;font-weight:600;background:var(--redbg);color:var(--redtx);border:1px solid #f8b4b4;transition:.3s';
+  } else {
+    badge.style.cssText = 'display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:100px;font-size:11px;font-weight:600;background:var(--greenbg);color:var(--greentx);border:1px solid #a7f3d0;transition:.3s';
+  }
+  txt.textContent = text || 'Terhubung';
+}
+
+function setOverlayMsg(msg) {
+  const el = document.getElementById('fb-overlay-msg');
+  if (el) el.textContent = msg;
+}
+
+function hideOverlay() {
+  const el = document.getElementById('fb-overlay');
+  if (el) { el.classList.add('hide'); setTimeout(() => el.style.display = 'none', 500); }
+}
+
+function showOverlay(msg) {
+  const el = document.getElementById('fb-overlay');
+  if (el) { el.style.display = 'flex'; el.classList.remove('hide'); }
+  setOverlayMsg(msg || '');
+}
+
+// ── FIREBASE INIT (compat SDK v9) ──
+async function fbInit() {
+  const cfg = fbGetCfg();
+  if (!cfg.apiKey || !cfg.projectId) {
+    setSyncBadge('error', 'Firebase belum dikonfigurasi');
+    loadLocalFallback();
+    hideOverlay();
+    // Auto-open config if called on page load
+    setTimeout(openFbCfg, 600);
+    return;
+  }
+  showOverlay('Menghubungkan ke Firebase…');
+  setSyncBadge('syncing', 'Menghubungkan…');
+  try {
+    // Use Firebase compat SDK (loaded via <script> tag in <head>)
+    // Wait up to 5s for Firebase SDK to load from CDN
+  let retries = 0;
+  while (!window.firebase && retries < 10) {
+    await new Promise(r => setTimeout(r, 500));
+    retries++;
+  }
+  if (!window.firebase) throw new Error('Firebase SDK gagal dimuat. Periksa koneksi internet dan refresh halaman.');
+
+    // Delete existing app if any to allow reconfiguration
+    if (firebase.apps.length > 0) {
+      await Promise.all(firebase.apps.map(a => a.delete()));
+    }
+
+    fbApp = firebase.initializeApp({
+      apiKey: cfg.apiKey,
+      authDomain: cfg.authDomain,
+      projectId: cfg.projectId,
+      storageBucket: cfg.storageBucket,
+      messagingSenderId: cfg.messagingSenderId,
+      appId: cfg.appId
+    });
+
+    fbDb = firebase.firestore();
+    fbReady = true;
+    fbConfigured = true;
+
+    setOverlayMsg('Memuat data real-time…');
+
+    const docRef = fbDb.collection(FB_COLLECTION).doc(FB_DOC);
+
+    // Check if document exists; if not, push default/local data
+    const snap = await docRef.get();
+    if (!snap.exists) {
+      setOverlayMsg('Inisialisasi data pertama kali…');
+      const localData = getLocalData();
+      const initData = localData.length ? localData : DEFAULT_DATA;
+      await docRef.set({ data: initData, updatedAt: new Date().toISOString(), version: 3 });
+    }
+
+    // Subscribe real-time listener
+    if (fbUnsubscribe) fbUnsubscribe();
+    fbUnsubscribe = docRef.onSnapshot((snapshot) => {
+      if (snapshot.exists) {
+        const remote = snapshot.data();
+        const incoming = remote.data || [];
+        if (Array.isArray(incoming) && incoming.length > 0) {
+          DATA = incoming;
+          localStorage.setItem('bpk_bm_v3', JSON.stringify(DATA));
+          setUpdTime(remote.updatedAt);
+          refreshCurrentPage();
+          setSyncBadge('', 'Real-time aktif ✓');
+        }
+      }
+    }, (err) => {
+      console.error('Firestore listener error:', err);
+      setSyncBadge('error', 'Sync error');
+      toast('Koneksi Firebase terputus: ' + err.message, 'err');
+    });
+
+    hideOverlay();
+    setSyncBadge('', 'Real-time aktif ✓');
+    toast('✓ Firebase terhubung — real-time aktif');
+
+  } catch (err) {
+    console.error('Firebase init error:', err);
+    let msg = err.message || 'Unknown error';
+    // Provide clearer messages for common errors
+    if (msg.includes('auth/invalid-api-key') || msg.includes('api-key-not-valid')) {
+      msg = 'API Key tidak valid. Periksa kembali nilai API Key di konfigurasi.';
+    } else if (msg.includes('app/no-app') || msg.includes('no Firebase App')) {
+      msg = 'Firebase SDK belum siap. Refresh halaman dan coba lagi.';
+    } else if (msg.includes('projectId') || msg.includes('project')) {
+      msg = 'Project ID tidak valid atau Firestore belum diaktifkan di Firebase Console.';
+    } else if (msg.includes('permission') || msg.includes('PERMISSION_DENIED')) {
+      msg = 'Akses ditolak. Periksa Security Rules Firestore di Firebase Console.';
+    } else if (msg.includes('network') || msg.includes('fetch') || msg.includes('Load')) {
+      msg = 'Gagal terhubung ke internet. Periksa koneksi jaringan Anda.';
+    }
+    setSyncBadge('error', 'Firebase error');
+    setOverlayMsg('Gagal: ' + msg);
+    loadLocalFallback();
+    hideOverlay();
+    // Show error in config modal if open
+    const cfgRes = document.getElementById('fb-cfg-result');
+    if (cfgRes) cfgRes.innerHTML = '<div class="al red" style="margin-top:4px"><i class="ti ti-x"></i><span>' + msg + '</span></div>';
+    toast('Firebase gagal — mode offline aktif', 'err');
+  }
+}
+
+// ── FIRESTORE SAVE (compat SDK) ──
+async function save() {
+  localStorage.setItem('bpk_bm_v3', JSON.stringify(DATA));
+  setUpd();
+
+  if (!fbReady || !fbDb) return;
+
+  setSyncBadge('syncing', 'Menyimpan…');
+  try {
+    const docRef = fbDb.collection(FB_COLLECTION).doc(FB_DOC);
+    await docRef.set({ data: DATA, updatedAt: new Date().toISOString(), version: 3 });
+    setSyncBadge('', 'Tersimpan ✓');
+    setTimeout(() => setSyncBadge('', 'Real-time aktif ✓'), 2000);
+  } catch (err) {
+    console.error('Firestore save error:', err);
+    setSyncBadge('error', 'Gagal simpan');
+    toast('Gagal simpan ke Firebase: ' + err.message, 'err');
+  }
+}
+
+// ── LOCAL FALLBACK ──
+function getLocalData() {
+  try { return JSON.parse(localStorage.getItem('bpk_bm_v3') || '[]'); } catch(e) { return []; }
+}
+
+function loadLocalFallback() {
+  DATA = getLocalData();
+  if (!DATA.length) DATA = JSON.parse(JSON.stringify(DEFAULT_DATA));
+  setUpd();
+  rDash();
+}
+
+// ── HELPERS ──
+function setUpd() {
+  document.getElementById('lupd').textContent =
+    new Date().toLocaleDateString('id-ID', {day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+}
+
+function setUpdTime(isoStr) {
+  if (!isoStr) { setUpd(); return; }
+  try {
+    document.getElementById('lupd').textContent =
+      new Date(isoStr).toLocaleDateString('id-ID', {day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  } catch(e) { setUpd(); }
+}
+
+function refreshCurrentPage() {
+  try {
+    const cur = document.querySelector('.page.on');
+    if (!cur) return;
+    const id = cur.id.replace('pg-', '');
+    const renders = {dashboard:rDash, semua:rSemua, belum:rBelum, cicilan:rCicilan, lhp25:rLhp25};
+    if (renders[id]) renders[id]();
+  } catch(e) {}
+}
+
+// ── FIREBASE CONFIG MODAL ──
+function openFbCfg() {
+  const cfg = fbGetCfg();
+  ['apiKey','authDomain','projectId','storageBucket','messagingSenderId','appId'].forEach(k => {
+    const el = document.getElementById('fb-' + k);
+    // Strip any stale quotes from previously saved config
+    if (el) el.value = (cfg[k] || '').replace(/^["']+|["']+$/g,'').trim();
+  });
+  document.getElementById('fb-cfg-result').innerHTML = '';
+  document.getElementById('mo-fbcfg').classList.add('open');
+}
+
+function fbSaveCfg() {
+  const cfg = {};
+  const fields = ['apiKey','authDomain','projectId','storageBucket','messagingSenderId','appId'];
+  let ok = true;
+  // Strip surrounding quotes that users may accidentally paste
+  function cleanVal(v){ return (v||'').trim().replace(/^["']+|["']+$/g,'').trim(); }
+  fields.forEach(k => {
+    const el = document.getElementById('fb-' + k);
+    cfg[k] = el ? cleanVal(el.value) : '';
+    if ((k === 'apiKey' || k === 'projectId') && !cfg[k]) ok = false;
+  });
+  if (!ok) {
+    document.getElementById('fb-cfg-result').innerHTML =
+      '<div class="al red" style="margin-top:4px"><i class="ti ti-x"></i><span>API Key dan Project ID wajib diisi.</span></div>';
+    return;
+  }
+  fbSetCfg(cfg);
+  closeMo('mo-fbcfg');
+  toast('Konfigurasi disimpan — menghubungkan ke Firebase…');
+  // Reinitialize
+  if (fbUnsubscribe) { fbUnsubscribe(); fbUnsubscribe = null; }
+  fbReady = false; fbDb = null; fbApp = null;
+  setTimeout(fbInit, 200);
+}
+
+async function fbTestOnly() {
+  function cleanVal(v){ return (v||'').trim().replace(/^["']+|["']+$/g,'').trim(); }
+  const apiKey = cleanVal(document.getElementById('fb-apiKey').value);
+  const projectId = cleanVal(document.getElementById('fb-projectId').value);
+  const authDomain = cleanVal(document.getElementById('fb-authDomain').value);
+  const appId = cleanVal(document.getElementById('fb-appId').value);
+  const resEl = document.getElementById('fb-cfg-result');
+
+  // Basic format validation only — no network call needed
+  const errs = [];
+  if (!apiKey) errs.push('API Key kosong');
+  else if (!apiKey.startsWith('AIza') || apiKey.length < 30) errs.push('API Key tidak valid (harus diawali AIza...)');
+  if (!projectId) errs.push('Project ID kosong');
+  else if (projectId.length < 4) errs.push('Project ID terlalu pendek');
+  if (!appId) errs.push('App ID kosong');
+  else if (!appId.includes(':web:')) errs.push('App ID tidak valid (harus mengandung :web:)');
+
+  if (errs.length) {
+    resEl.innerHTML = '<div class="al red" style="margin-top:4px"><i class="ti ti-x"></i><span>'+errs.join(' · ')+'</span></div>';
+    return;
+  }
+  resEl.innerHTML = '<div class="al blue" style="margin-top:4px;background:var(--greenbg);color:var(--greentx);border-color:#a7f3d0"><i class="ti ti-check"></i><span>✓ Format konfigurasi valid — klik <strong>Simpan &amp; Hubungkan</strong> untuk memulai koneksi ke Firebase.</span></div>';
+}
+
+// ── NAV BINDING ──
+document.querySelectorAll('.ni').forEach(n =>
+  n.addEventListener('click', function() { goPage(this.dataset.page); })
+);
+
+// ── HOST INFO ──
+(function(){
+  const proto = location.protocol;
+  const host = location.hostname;
+  const el = document.getElementById('fb-host-info');
+  if (!el) return;
+  if (proto === 'file:') {
+    el.style.display = 'block';
+    el.innerHTML = '<span style="color:var(--amber)">⚠ Dibuka via file:// — Firebase mungkin tidak berfungsi. Gunakan link GitHub Pages.</span>';
+  } else if (host.includes('github.io')) {
+    el.style.display = 'block';
+    el.innerHTML = '<span style="color:var(--green)">✓ Hosted: ' + host + '</span>';
+  }
+})();
+
+// ── INIT ──
+DATA = [];
+fbInit();
+
+</script>
+</body>
+</html>
