@@ -223,7 +223,7 @@ tr:hover td{background:#fafbfc}
   <div class="sb-foot">
     <div style="margin-bottom:5px">Update: <span id="lupd">—</span></div>
     <div id="fb-host-info" style="font-size:10px;color:var(--tx3);margin-bottom:5px;display:none"></div>
-    <button onclick="openFbCfg()" style="background:none;border:1px solid var(--bd2);border-radius:5px;padding:4px 8px;font-size:10px;color:var(--tx3);cursor:pointer;width:100%;font-family:inherit"><i class="ti ti-database" style="font-size:11px;vertical-align:-1px"></i> Firebase Config</button>
+    <button id="btn-fbcfg" onclick="openFbCfg()" style="background:none;border:1px solid var(--bd2);border-radius:5px;padding:4px 8px;font-size:10px;color:var(--tx3);cursor:pointer;width:100%;font-family:inherit"><i class="ti ti-database" style="font-size:11px;vertical-align:-1px"></i> Firebase Config</button>
   </div>
 </aside>
 
@@ -901,6 +901,21 @@ function toast(msg,type){const t=document.getElementById('toast');t.textContent=
 // FIREBASE REALTIME SYNC — Monitoring Temuan BPK Bina Marga
 // ═══════════════════════════════════════════════════════════
 
+// ┌─────────────────────────────────────────────────────────┐
+// │  KONFIGURASI FIREBASE — ISI SESUAI PROJECT ANDA         │
+// │  Setelah diisi, semua pengguna langsung terhubung       │
+// │  tanpa perlu mengisi form konfigurasi.                  │
+// └─────────────────────────────────────────────────────────┘
+const FB_EMBEDDED_CONFIG = {
+  apiKey:            "",   // contoh: "AIzaSyXXXXXXXXXXXXXXXXXXX"
+  authDomain:        "",   // contoh: "project-id.firebaseapp.com"
+  projectId:         "",   // contoh: "project-id"
+  storageBucket:     "",   // contoh: "project-id.appspot.com"
+  messagingSenderId: "",   // contoh: "123456789012"
+  appId:             ""    // contoh: "1:123456789012:web:abc123"
+};
+// ──────────────────────────────────────────────────────────
+
 const FB_CFG_KEY = 'bpk_firebase_cfg';
 const FB_COLLECTION = 'temuan_bpk';
 const FB_DOC = 'data_bina_marga';
@@ -945,9 +960,17 @@ const DEFAULT_DATA = [
 
 // ── FIREBASE CONFIG STORAGE ──
 function fbGetCfg() {
+  // Prioritas 1: embedded config di file HTML (jika sudah diisi)
+  if (FB_EMBEDDED_CONFIG && FB_EMBEDDED_CONFIG.apiKey && FB_EMBEDDED_CONFIG.apiKey.trim()) {
+    return FB_EMBEDDED_CONFIG;
+  }
+  // Prioritas 2: config yang disimpan di localStorage browser
   try { return JSON.parse(localStorage.getItem(FB_CFG_KEY) || '{}'); } catch(e) { return {}; }
 }
 function fbSetCfg(cfg) { localStorage.setItem(FB_CFG_KEY, JSON.stringify(cfg)); }
+function fbIsEmbedded() {
+  return !!(FB_EMBEDDED_CONFIG && FB_EMBEDDED_CONFIG.apiKey && FB_EMBEDDED_CONFIG.apiKey.trim());
+}
 
 // ── SYNC UI HELPERS ──
 function setSyncBadge(state, text) {
@@ -1059,6 +1082,9 @@ async function fbInit() {
     hideOverlay();
     setSyncBadge('', 'Real-time aktif ✓');
     toast('✓ Firebase terhubung — real-time aktif');
+    // Sembunyikan tombol config jika pakai embedded config
+    const btnCfg = document.getElementById('btn-fbcfg');
+    if (btnCfg) btnCfg.style.display = fbIsEmbedded() ? 'none' : '';
 
   } catch (err) {
     console.error('Firebase init error:', err);
@@ -1144,10 +1170,12 @@ function refreshCurrentPage() {
 
 // ── FIREBASE CONFIG MODAL ──
 function openFbCfg() {
+  // Jika embedded config aktif, jangan tampilkan modal sama sekali
+  if (fbIsEmbedded()) return;
+  // Ambil dari localStorage
   const cfg = fbGetCfg();
   ['apiKey','authDomain','projectId','storageBucket','messagingSenderId','appId'].forEach(k => {
     const el = document.getElementById('fb-' + k);
-    // Strip any stale quotes from previously saved config
     if (el) el.value = (cfg[k] || '').replace(/^["']+|["']+$/g,'').trim();
   });
   document.getElementById('fb-cfg-result').innerHTML = '';
@@ -1216,10 +1244,15 @@ document.querySelectorAll('.ni').forEach(n =>
   if (!el) return;
   if (proto === 'file:') {
     el.style.display = 'block';
-    el.innerHTML = '<span style="color:var(--amber)">⚠ Dibuka via file:// — Firebase mungkin tidak berfungsi. Gunakan link GitHub Pages.</span>';
-  } else if (host.includes('github.io')) {
+    el.innerHTML = '<span style="color:var(--amber)">⚠ Dibuka via file:// — gunakan GitHub Pages agar Firebase berfungsi.</span>';
+  } else if (host.includes('github.io') || host.includes('localhost') || proto === 'https:') {
     el.style.display = 'block';
-    el.innerHTML = '<span style="color:var(--green)">✓ Hosted: ' + host + '</span>';
+    el.innerHTML = '<span style="color:var(--green)">✓ ' + (host.includes('github.io') ? 'GitHub Pages' : host) + '</span>';
+  }
+  // Sembunyikan tombol config jika embedded
+  if (typeof fbIsEmbedded === 'function' && fbIsEmbedded()) {
+    const btn = document.getElementById('btn-fbcfg');
+    if (btn) btn.style.display = 'none';
   }
 })();
 
