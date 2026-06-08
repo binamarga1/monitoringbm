@@ -1217,31 +1217,64 @@ async function fbInit() {
     }
 
     // Subscribe real-time listener
+    // overlayHidden tracks whether we've already hidden the loading screen
+    let overlayHidden = false;
     if (fbUnsubscribe) fbUnsubscribe();
     fbUnsubscribe = docRef.onSnapshot((snapshot) => {
       if (snapshot.exists) {
         const remote = snapshot.data();
         const incoming = remote.data || [];
+        // Hide overlay on first snapshot regardless of data length
+        if (!overlayHidden) {
+          overlayHidden = true;
+          hideOverlay();
+          setSyncBadge('', 'Real-time aktif ✓');
+          toast('✓ Firebase terhubung — real-time aktif');
+          const btnCfg = document.getElementById('btn-fbcfg');
+          if (btnCfg) btnCfg.style.display = fbIsEmbedded() ? 'none' : '';
+        }
         if (Array.isArray(incoming) && incoming.length > 0) {
           DATA = incoming;
           localStorage.setItem('bpk_bm_v3', JSON.stringify(DATA));
           setUpdTime(remote.updatedAt);
           refreshCurrentPage();
           setSyncBadge('', 'Real-time aktif ✓');
+        } else {
+          // Document exists but data array is empty — render with empty state
+          DATA = [];
+          refreshCurrentPage();
         }
+      } else {
+        // Document doesn't exist yet — hide overlay and show empty state
+        if (!overlayHidden) {
+          overlayHidden = true;
+          hideOverlay();
+          setSyncBadge('', 'Real-time aktif ✓');
+        }
+        DATA = [];
+        refreshCurrentPage();
       }
     }, (err) => {
       console.error('Firestore listener error:', err);
+      if (!overlayHidden) {
+        overlayHidden = true;
+        loadLocalFallback();
+        hideOverlay();
+      }
       setSyncBadge('error', 'Sync error');
       toast('Koneksi Firebase terputus: ' + err.message, 'err');
     });
 
-    hideOverlay();
-    setSyncBadge('', 'Real-time aktif ✓');
-    toast('✓ Firebase terhubung — real-time aktif');
-    // Sembunyikan tombol config jika pakai embedded config
-    const btnCfg = document.getElementById('btn-fbcfg');
-    if (btnCfg) btnCfg.style.display = fbIsEmbedded() ? 'none' : '';
+    // Safety timeout: hide overlay after 8 seconds no matter what
+    setTimeout(() => {
+      if (!overlayHidden) {
+        overlayHidden = true;
+        hideOverlay();
+        if (!DATA.length) { loadLocalFallback(); }
+        setSyncBadge('error', 'Timeout — mode offline');
+        toast('Firebase lambat — data lokal digunakan', 'err');
+      }
+    }, 8000);
 
   } catch (err) {
     console.error('Firebase init error:', err);
