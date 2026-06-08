@@ -790,9 +790,7 @@ async function ciUploadPdf(i, inputEl){
 function ciOpenPdf(i){
   const c = tempCi[i];
   if(!c || !c.pdfUrl) return;
-  if(confirm('Buka PDF di tab baru?
-
-Tekan Cancel untuk mengganti file PDF.')){
+  if(confirm('Buka PDF di tab baru?\n\nTekan Cancel untuk mengganti file PDF.')){
     window.open(c.pdfUrl, '_blank');
   } else {
     if(tempCi[i]) tempCi[i].pdfUrl = null;
