@@ -745,7 +745,14 @@ function rCiList(){
 }
 function addCi(){tempCi.push({t:today(),j:0,b:''});rCiList();}
 function updCi(i,f,v){if(tempCi[i])tempCi[i][f]=v;updCiTot();}
-function delCi(i){tempCi.splice(i,1);rCiList();}
+function delCi(i){
+  const c = tempCi[i]||{};
+  const tgl = c.t||'—';
+  const jml = rp(c.j||0);
+  if(!confirm('Hapus baris setoran ini?\n\nTanggal: '+tgl+' | Jumlah: '+jml)) return;
+  tempCi.splice(i,1);
+  rCiList();
+}
 function updCiTot(){document.getElementById('ciTot').textContent=rp(tempCi.reduce((s,c)=>s+(+c.j||0),0));}
 
 // ── CLOUDINARY CONFIG ──
@@ -849,20 +856,98 @@ function ciOpenPdf(i){
   }
 }
 
-function viewPdf(url){
+// ── PDF.js VIEWER ──
+let pdfDoc = null, pdfPage = 1, pdfScale = 1.4, pdfTotalPages = 1, pdfCurrentUrl = '';
+
+async function viewPdf(url){
   if(!url) return;
-  // Gunakan PDF.js viewer (Mozilla) — berjalan di browser, tidak butuh server perantara
-  const pdfjs = 'https://mozilla.github.io/pdf.js/web/viewer.html?file=' + encodeURIComponent(url);
+  pdfCurrentUrl = url;
+  pdfPage = 1; pdfScale = 1.4;
+
+  // Show modal
   const mo = document.getElementById('mo-pdfview');
-  const iframe = document.getElementById('pdf-iframe');
-  const title = document.getElementById('pdf-iframe-title');
-  if(mo && iframe){
-    iframe.src = pdfjs;
-    if(title) title.textContent = 'Memuat PDF…';
-    mo.classList.add('open');
-  } else {
-    window.open(pdfjs, '_blank');
+  if(!mo) { window.open(url,'_blank'); return; }
+  mo.classList.add('open');
+
+  // Setup download button
+  const dlBtn = document.getElementById('pdf-download-btn');
+  if(dlBtn){ dlBtn.href = url; }
+
+  // Show loading
+  document.getElementById('pdf-loading').style.display = 'block';
+  document.getElementById('pdf-error').style.display = 'none';
+  document.getElementById('pdf-canvas').style.display = 'none';
+
+  try{
+    // Load PDF.js dari CDN jika belum ada
+    if(!window.pdfjsLib){
+      await new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+        s.onload = resolve; s.onerror = reject;
+        document.head.appendChild(s);
+      });
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+
+    // Fetch PDF sebagai ArrayBuffer untuk bypass CORS
+    const response = await fetch(url);
+    if(!response.ok) throw new Error('HTTP '+response.status);
+    const arrayBuffer = await response.arrayBuffer();
+
+    pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    pdfTotalPages = pdfDoc.numPages;
+    document.getElementById('pdf-loading').style.display = 'none';
+    document.getElementById('pdf-canvas').style.display = 'block';
+    await pdfRenderPage(pdfPage);
+
+  }catch(err){
+    console.error('PDF load error:', err);
+    document.getElementById('pdf-loading').style.display = 'none';
+    document.getElementById('pdf-error').style.display = 'block';
+    document.getElementById('pdf-error-msg').textContent = 'Gagal memuat PDF: ' + (err.message||'');
+    const lnk = document.getElementById('pdf-direct-link');
+    if(lnk) lnk.href = url;
   }
+}
+
+async function pdfRenderPage(num){
+  if(!pdfDoc) return;
+  const page = await pdfDoc.getPage(num);
+  const canvas = document.getElementById('pdf-canvas');
+  const wrap = document.getElementById('pdf-canvas-wrap');
+  const wrapW = wrap ? wrap.clientWidth - 24 : 800;
+  // Auto-fit to container width
+  const unscaled = page.getViewport({scale:1});
+  const autoScale = Math.min(pdfScale, wrapW / unscaled.width);
+  const viewport = page.getViewport({scale: autoScale});
+  canvas.height = viewport.height;
+  canvas.width  = viewport.width;
+  await page.render({canvasContext: canvas.getContext('2d'), viewport}).promise;
+  // Update page info
+  const info = document.getElementById('pdf-page-info');
+  if(info) info.textContent = 'Halaman '+num+' / '+pdfTotalPages;
+  const prev = document.getElementById('pdf-prev');
+  const next = document.getElementById('pdf-next');
+  if(prev) prev.disabled = num <= 1;
+  if(next) next.disabled = num >= pdfTotalPages;
+}
+
+async function pdfPrevPage(){ if(pdfPage>1){ pdfPage--; await pdfRenderPage(pdfPage); } }
+async function pdfNextPage(){ if(pdfPage<pdfTotalPages){ pdfPage++; await pdfRenderPage(pdfPage); } }
+async function pdfZoomIn(){ pdfScale = Math.min(pdfScale+0.3, 3.0); await pdfRenderPage(pdfPage); }
+async function pdfZoomOut(){ pdfScale = Math.max(pdfScale-0.3, 0.5); await pdfRenderPage(pdfPage); }
+
+function closePdfModal(){
+  closeMo('mo-pdfview');
+  pdfDoc = null; pdfPage = 1; pdfCurrentUrl = '';
+  const canvas = document.getElementById('pdf-canvas');
+  if(canvas){ const ctx=canvas.getContext('2d'); ctx.clearRect(0,0,canvas.width,canvas.height); }
+  const rb = document.getElementById('pdf-replace-btn');
+  if(rb) rb.style.display = 'none';
+  const info = document.getElementById('pdf-page-info');
+  if(info) info.textContent = '';
 }
 
 // ── CLOUDINARY CONFIG MODAL ──
@@ -1592,16 +1677,36 @@ fbInit();
 
 <!-- MODAL PDF VIEWER -->
 <div class="mo" id="mo-pdfview">
-  <div class="md" style="max-width:860px;height:90vh">
-    <div class="mh" style="flex-shrink:0">
-      <h2><i class="ti ti-file-type-pdf" style="vertical-align:-2px;color:var(--red)"></i> <span id="pdf-iframe-title">Preview PDF</span></h2>
-      <div style="display:flex;gap:8px;align-items:center">
-        <button id="pdf-replace-btn" class="btn btn-sm" style="display:none;font-size:11px"><i class="ti ti-refresh"></i> Ganti PDF</button>
-        <button class="mc" onclick="closeMo('mo-pdfview');document.getElementById('pdf-iframe').src='';const rb=document.getElementById('pdf-replace-btn');if(rb)rb.style.display='none'">&#x2715;</button>
+  <div class="md" style="max-width:900px;height:92vh;display:flex;flex-direction:column">
+    <div class="mh" style="flex-shrink:0;padding:10px 16px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <i class="ti ti-file-type-pdf" style="font-size:18px;color:var(--red)"></i>
+        <span id="pdf-modal-title" style="font-size:13px;font-weight:700;color:var(--tx)">Preview PDF</span>
+        <span id="pdf-page-info" style="font-size:11px;color:var(--tx3);margin-left:4px"></span>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <button onclick="pdfPrevPage()" class="btn btn-sm" id="pdf-prev" title="Halaman sebelumnya"><i class="ti ti-chevron-left"></i></button>
+        <button onclick="pdfNextPage()" class="btn btn-sm" id="pdf-next" title="Halaman berikutnya"><i class="ti ti-chevron-right"></i></button>
+        <button onclick="pdfZoomOut()" class="btn btn-sm" title="Perkecil"><i class="ti ti-zoom-out"></i></button>
+        <button onclick="pdfZoomIn()" class="btn btn-sm" title="Perbesar"><i class="ti ti-zoom-in"></i></button>
+        <a id="pdf-download-btn" href="#" download class="btn btn-sm" title="Download PDF" style="text-decoration:none"><i class="ti ti-download"></i></a>
+        <button id="pdf-replace-btn" class="btn btn-sm" style="display:none"><i class="ti ti-refresh"></i> Ganti</button>
+        <button class="mc" onclick="closePdfModal()">&#x2715;</button>
       </div>
     </div>
-    <div style="flex:1;overflow:hidden;padding:0">
-      <iframe id="pdf-iframe" src="" style="width:100%;height:100%;border:none" onload="const t=document.getElementById('pdf-iframe-title');if(t)t.textContent='Preview PDF'"></iframe>
+    <div id="pdf-loading" style="padding:40px;text-align:center;color:var(--tx3);flex-shrink:0;display:none">
+      <i class="ti ti-loader" style="font-size:24px;animation:spin .7s linear infinite"></i>
+      <div style="margin-top:8px;font-size:12px">Memuat PDF…</div>
+    </div>
+    <div id="pdf-error" style="padding:24px;text-align:center;color:var(--redtx);flex-shrink:0;display:none">
+      <i class="ti ti-alert-triangle" style="font-size:24px"></i>
+      <div style="margin-top:8px;font-size:12px" id="pdf-error-msg">Gagal memuat PDF.</div>
+      <a id="pdf-direct-link" href="#" target="_blank" class="btn btn-sm" style="margin-top:10px;display:inline-flex;text-decoration:none">
+        <i class="ti ti-external-link"></i> Buka di tab baru
+      </a>
+    </div>
+    <div style="flex:1;overflow:auto;background:#404040;display:flex;justify-content:center;padding:12px" id="pdf-canvas-wrap">
+      <canvas id="pdf-canvas" style="box-shadow:0 4px 20px rgba(0,0,0,.4);max-width:100%;height:auto"></canvas>
     </div>
   </div>
 </div>
