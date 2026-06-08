@@ -223,7 +223,8 @@ tr:hover td{background:#fafbfc}
   <div class="sb-foot">
     <div style="margin-bottom:5px">Update: <span id="lupd">—</span></div>
     <div id="fb-host-info" style="font-size:10px;color:var(--tx3);margin-bottom:5px;display:none"></div>
-    <button id="btn-fbcfg" onclick="openFbCfg()" style="background:none;border:1px solid var(--bd2);border-radius:5px;padding:4px 8px;font-size:10px;color:var(--tx3);cursor:pointer;width:100%;font-family:inherit"><i class="ti ti-database" style="font-size:11px;vertical-align:-1px"></i> Firebase Config</button>
+    <button id="btn-fbcfg" onclick="openFbCfg()" style="background:none;border:1px solid var(--bd2);border-radius:5px;padding:4px 8px;font-size:10px;color:var(--tx3);cursor:pointer;width:100%;font-family:inherit;margin-bottom:3px"><i class="ti ti-database" style="font-size:11px;vertical-align:-1px"></i> Firebase Config</button>
+    <button id="btn-cldcfg" onclick="openCldCfg()" style="background:none;border:1px solid var(--bd2);border-radius:5px;padding:4px 8px;font-size:10px;color:var(--tx3);cursor:pointer;width:100%;font-family:inherit"><i class="ti ti-cloud-upload" style="font-size:11px;vertical-align:-1px"></i> Cloudinary Config</button>
   </div>
 </aside>
 
@@ -442,7 +443,7 @@ tr:hover td{background:#fafbfc}
       </div>
       <div class="fsec">Histori Setoran / Cicilan</div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px">
-        <span style="font-size:11px;color:var(--tx3)">Tanggal &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Jumlah (Rp) &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; No. Bukti Setor</span>
+        <span style="font-size:11px;color:var(--tx3)">Tanggal &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Jumlah (Rp) &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; No. Bukti Setor &nbsp;&nbsp;&nbsp;&nbsp; Bukti PDF</span>
         <button class="btn btn-sm" onclick="addCi()"><i class="ti ti-plus"></i>Tambah Setoran</button>
       </div>
       <div id="ci-list"></div>
@@ -689,19 +690,163 @@ function openEdit(id){
   document.getElementById('mo-edit').classList.add('open');
 }
 function rCiList(){
-  document.getElementById('ci-list').innerHTML=tempCi.map((c,i)=>`
-    <div class="ci-row">
+  document.getElementById('ci-list').innerHTML=tempCi.map((c,i)=>{
+    // PDF button state
+    let pdfBtn = '';
+    if(c.pdfUrl){
+      pdfBtn = `<button class="ci-pdf-btn has-file" onclick="ciOpenPdf(${i})" title="Lihat/Ganti PDF">
+        <i class="ti ti-file-type-pdf"></i><span>Lihat PDF</span></button>`;
+    } else {
+      pdfBtn = `<button class="ci-pdf-btn" onclick="ciPickPdf(${i})" title="Upload bukti PDF">
+        <i class="ti ti-upload"></i><span>Upload PDF</span></button>`;
+    }
+    return `<div class="ci-row" id="ci-row-${i}">
       <input type="date" value="${c.t||''}" oninput="updCi(${i},'t',this.value)">
       <input type="number" value="${c.j||''}" placeholder="Jumlah (Rp)" oninput="updCi(${i},'j',+this.value)">
       <input type="text" value="${c.b||''}" placeholder="No. bukti setor" oninput="updCi(${i},'b',this.value)">
+      <input type="file" accept="application/pdf" class="ci-pdf-input" id="ci-pdf-input-${i}" onchange="ciUploadPdf(${i},this)">
+      ${pdfBtn}
       <button class="ci-del" onclick="delCi(${i})" title="Hapus baris"><i class="ti ti-x"></i></button>
-    </div>`).join('');
+    </div>`;
+  }).join('');
   updCiTot();
 }
 function addCi(){tempCi.push({t:today(),j:0,b:''});rCiList();}
 function updCi(i,f,v){if(tempCi[i])tempCi[i][f]=v;updCiTot();}
 function delCi(i){tempCi.splice(i,1);rCiList();}
 function updCiTot(){document.getElementById('ciTot').textContent=rp(tempCi.reduce((s,c)=>s+(+c.j||0),0));}
+
+// ── CLOUDINARY CONFIG ──
+function cldGetCfg(){
+  // Prioritas 1: embedded config
+  if(CLOUDINARY_CONFIG && CLOUDINARY_CONFIG.cloudName && CLOUDINARY_CONFIG.cloudName.trim())
+    return CLOUDINARY_CONFIG;
+  // Prioritas 2: localStorage
+  try{ return JSON.parse(localStorage.getItem(CLD_CFG_KEY)||'{}'); }catch(e){ return {}; }
+}
+function cldSetCfg(cfg){ localStorage.setItem(CLD_CFG_KEY, JSON.stringify(cfg)); }
+function cldIsReady(){
+  const c=cldGetCfg();
+  return !!(c.cloudName && c.cloudName.trim() && c.uploadPreset && c.uploadPreset.trim());
+}
+
+// ── PDF UPLOAD (Cloudinary) ──
+function ciPickPdf(i){
+  if(!cldIsReady()){ openCldCfg(); return; }
+  const inp = document.getElementById('ci-pdf-input-'+i);
+  if(inp) inp.click();
+}
+
+async function ciUploadPdf(i, inputEl){
+  const file = inputEl.files[0];
+  if(!file) return;
+  if(file.type !== 'application/pdf'){
+    toast('Hanya file PDF yang diizinkan','err'); return;
+  }
+  if(file.size > 10*1024*1024){
+    toast('Ukuran file maksimal 10 MB','err'); return;
+  }
+  const cfg = cldGetCfg();
+  if(!cfg.cloudName || !cfg.uploadPreset){
+    toast('Konfigurasi Cloudinary belum diisi','err');
+    openCldCfg(); return;
+  }
+
+  const btn = document.querySelector(`#ci-row-${i} .ci-pdf-btn`);
+  if(btn){ btn.className='ci-pdf-btn uploading'; btn.innerHTML='<i class="ti ti-loader"></i><span>Mengupload…</span>'; }
+
+  try{
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('upload_preset', cfg.uploadPreset);
+    fd.append('folder', 'bukti_setor');
+    fd.append('resource_type', 'raw');
+
+    const res = await fetch(
+      `https://api.cloudinary.com/v1_1/${cfg.cloudName}/raw/upload`,
+      { method:'POST', body: fd }
+    );
+    if(!res.ok){
+      const err = await res.json().catch(()=>({}));
+      throw new Error(err.error?.message || 'Upload gagal ('+res.status+')');
+    }
+    const data = await res.json();
+    const url = data.secure_url;
+
+    if(tempCi[i]) tempCi[i].pdfUrl = url;
+    if(tempCi[i] && !tempCi[i].b) tempCi[i].b = file.name.replace(/\.pdf$/i,'');
+    rCiList();
+    toast('✓ PDF berhasil diupload');
+  }catch(err){
+    console.error('Cloudinary upload error:', err);
+    if(btn){ btn.className='ci-pdf-btn error'; btn.innerHTML='<i class="ti ti-x"></i><span>Gagal — klik ulang</span>'; }
+    let msg = err.message || 'Upload gagal';
+    if(msg.includes('Upload preset') || msg.includes('preset')) msg = 'Upload Preset tidak valid. Periksa konfigurasi Cloudinary.';
+    else if(msg.includes('cloud_name') || msg.includes('Unknown')) msg = 'Cloud Name tidak valid. Periksa konfigurasi Cloudinary.';
+    toast('Upload gagal: '+msg,'err');
+  }
+}
+
+function ciOpenPdf(i){
+  const c = tempCi[i];
+  if(!c || !c.pdfUrl) return;
+  if(confirm('Buka PDF di tab baru?
+
+Tekan Cancel untuk mengganti file PDF.')){
+    window.open(c.pdfUrl, '_blank');
+  } else {
+    if(tempCi[i]) tempCi[i].pdfUrl = null;
+    rCiList();
+    setTimeout(()=>ciPickPdf(i), 100);
+  }
+}
+
+function viewPdf(url){
+  if(url) window.open(url,'_blank');
+}
+
+// ── CLOUDINARY CONFIG MODAL ──
+function openCldCfg(){
+  const cfg = cldGetCfg();
+  const el = document.getElementById('cld-cloudName');
+  const el2 = document.getElementById('cld-uploadPreset');
+  if(el) el.value = (cfg.cloudName||'').replace(/^["']+|["']+$/g,'').trim();
+  if(el2) el2.value = (cfg.uploadPreset||'').replace(/^["']+|["']+$/g,'').trim();
+  document.getElementById('cld-cfg-result').innerHTML='';
+  document.getElementById('mo-cldcfg').classList.add('open');
+}
+
+function cldSaveCfg(){
+  function cleanVal(v){ return (v||'').trim().replace(/^["']+|["']+$/g,'').trim(); }
+  const cloudName    = cleanVal(document.getElementById('cld-cloudName').value);
+  const uploadPreset = cleanVal(document.getElementById('cld-uploadPreset').value);
+  const resEl = document.getElementById('cld-cfg-result');
+  if(!cloudName || !uploadPreset){
+    resEl.innerHTML='<div class="al red" style="margin-top:6px"><i class="ti ti-x"></i><span>Cloud Name dan Upload Preset wajib diisi.</span></div>';
+    return;
+  }
+  cldSetCfg({cloudName, uploadPreset});
+  closeMo('mo-cldcfg');
+  toast('✓ Konfigurasi Cloudinary disimpan');
+}
+
+async function cldTestCfg(){
+  function cleanVal(v){ return (v||'').trim().replace(/^["']+|["']+$/g,'').trim(); }
+  const cloudName = cleanVal(document.getElementById('cld-cloudName').value);
+  const resEl = document.getElementById('cld-cfg-result');
+  if(!cloudName){
+    resEl.innerHTML='<div class="al red" style="margin-top:6px"><i class="ti ti-x"></i><span>Cloud Name wajib diisi untuk test.</span></div>';
+    return;
+  }
+  resEl.innerHTML='<div class="al blue" style="margin-top:6px"><i class="ti ti-loader"></i><span>Memeriksa Cloud Name…</span></div>';
+  try{
+    const res = await fetch(`https://res.cloudinary.com/${cloudName}/image/upload/sample`);
+    // Any response (even 404) means the cloud name is valid and reachable
+    resEl.innerHTML='<div class="al blue" style="margin-top:6px;background:var(--greenbg);color:var(--greentx);border-color:#a7f3d0"><i class="ti ti-check"></i><span>✓ Cloud Name <strong>'+cloudName+'</strong> valid dan dapat dijangkau. Klik <strong>Simpan</strong>.</span></div>';
+  }catch(e){
+    resEl.innerHTML='<div class="al red" style="margin-top:6px"><i class="ti ti-x"></i><span>Tidak dapat menjangkau Cloudinary. Periksa koneksi internet.</span></div>';
+  }
+}
 async function saveEdit(){
   const idx=DATA.findIndex(x=>x.id===editId);if(idx<0)return;
   const g=id=>document.getElementById(id).value;
@@ -719,8 +864,8 @@ function openHist(id){
   let h=`<p style="font-weight:700;font-size:13px">${d.py}</p><p style="font-size:11px;color:var(--tx2);margin-bottom:12px">${d.nm}</p>`;
   if(!d.ci||!d.ci.length){h+='<p style="color:var(--tx3);font-size:13px">Belum ada catatan setoran.</p>';}
   else{
-    h+=`<table style="width:100%;font-size:12px;border-collapse:collapse"><thead><tr style="background:var(--sur2)"><th style="padding:6px 8px;border-bottom:1px solid var(--bd);text-align:left">No</th><th style="padding:6px 8px;border-bottom:1px solid var(--bd);text-align:left">Tanggal</th><th style="padding:6px 8px;border-bottom:1px solid var(--bd);text-align:right">Jumlah (Rp)</th><th style="padding:6px 8px;border-bottom:1px solid var(--bd);text-align:left">No. Bukti Setor</th></tr></thead><tbody>`;
-    d.ci.forEach((c,i)=>{h+=`<tr><td style="padding:5px 8px">${i+1}</td><td style="padding:5px 8px">${fmtD(c.t)}</td><td style="padding:5px 8px;text-align:right;font-weight:700">${rp(c.j)}</td><td style="padding:5px 8px;color:var(--tx2)">${c.b||'—'}</td></tr>`;});
+    h+=`<table style="width:100%;font-size:12px;border-collapse:collapse"><thead><tr style="background:var(--sur2)"><th style="padding:6px 8px;border-bottom:1px solid var(--bd);text-align:left">No</th><th style="padding:6px 8px;border-bottom:1px solid var(--bd);text-align:left">Tanggal</th><th style="padding:6px 8px;border-bottom:1px solid var(--bd);text-align:right">Jumlah (Rp)</th><th style="padding:6px 8px;border-bottom:1px solid var(--bd);text-align:left">No. Bukti Setor</th><th style="padding:6px 8px;border-bottom:1px solid var(--bd);text-align:center">Bukti PDF</th></tr></thead><tbody>`;
+    d.ci.forEach((c,i)=>{const pdfCell=c.pdfUrl?`<button onclick="viewPdf('${c.pdfUrl}')" style="background:var(--bluebg);border:1px solid #bfdbfe;border-radius:4px;padding:2px 8px;font-size:10px;color:var(--bluetx);cursor:pointer;font-family:inherit"><i class="ti ti-file-type-pdf" style="vertical-align:-1px"></i> Lihat</button>`:'—';h+=`<tr><td style="padding:5px 8px">${i+1}</td><td style="padding:5px 8px">${fmtD(c.t)}</td><td style="padding:5px 8px;text-align:right;font-weight:700">${rp(c.j)}</td><td style="padding:5px 8px;color:var(--tx2)">${c.b||'—'}</td><td style="padding:5px 8px;text-align:center">${pdfCell}</td></tr>`;});
     h+=`</tbody></table>`;
   }
   h+=`<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--bd);display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-size:12px">
@@ -919,6 +1064,18 @@ const FB_EMBEDDED_CONFIG = {
 const FB_CFG_KEY = 'bpk_firebase_cfg';
 const FB_COLLECTION = 'temuan_bpk';
 const FB_DOC = 'data_bina_marga';
+
+// ┌─────────────────────────────────────────────────────────┐
+// │  KONFIGURASI CLOUDINARY — untuk Upload Bukti PDF        │
+// │  Daftar gratis di cloudinary.com (tanpa kartu kredit)   │
+// │  Isi Cloud Name dan Upload Preset setelah daftar        │
+// └─────────────────────────────────────────────────────────┘
+const CLOUDINARY_CONFIG = {
+  cloudName:    "",   // contoh: "dpupr-karanganyar"
+  uploadPreset: ""    // contoh: "bukti_setor_unsigned"
+};
+// ──────────────────────────────────────────────────────────
+const CLD_CFG_KEY = 'bpk_cloudinary_cfg';
 
 let fbApp = null, fbDb = null, fbUnsubscribe = null;
 let fbReady = false, fbConfigured = false;
@@ -1249,10 +1406,19 @@ document.querySelectorAll('.ni').forEach(n =>
     el.style.display = 'block';
     el.innerHTML = '<span style="color:var(--green)">✓ ' + (host.includes('github.io') ? 'GitHub Pages' : host) + '</span>';
   }
-  // Sembunyikan tombol config jika embedded
+  // Sembunyikan tombol firebase config jika embedded
   if (typeof fbIsEmbedded === 'function' && fbIsEmbedded()) {
     const btn = document.getElementById('btn-fbcfg');
     if (btn) btn.style.display = 'none';
+  }
+  // Tampilkan status Cloudinary
+  if (typeof cldIsReady === 'function' && cldIsReady()) {
+    const btn2 = document.getElementById('btn-cldcfg');
+    if (btn2){
+      btn2.style.borderColor = 'var(--green)';
+      btn2.style.color = 'var(--greentx)';
+      btn2.innerHTML = '<i class="ti ti-cloud-check" style="font-size:11px;vertical-align:-1px"></i> Cloudinary ✓';
+    }
   }
 })();
 
@@ -1261,5 +1427,37 @@ DATA = [];
 fbInit();
 
 </script>
+<!-- MODAL CLOUDINARY CONFIG -->
+<div class="mo" id="mo-cldcfg">
+  <div class="md md-sm">
+    <div class="mh">
+      <h2><i class="ti ti-cloud-upload" style="vertical-align:-2px;color:var(--blue)"></i> Konfigurasi Cloudinary</h2>
+      <button class="mc" onclick="closeMo('mo-cldcfg')">&#x2715;</button>
+    </div>
+    <div class="mb" style="padding:16px 18px">
+      <div class="al blue" style="margin-bottom:14px">
+        <i class="ti ti-info-circle"></i>
+        <span>Cloudinary digunakan untuk menyimpan file PDF bukti setor. <strong>Gratis</strong>, tanpa kartu kredit. Daftar di <a href="https://cloudinary.com/users/register/free" target="_blank" style="color:var(--blue)">cloudinary.com</a>.</span>
+      </div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:11px;font-weight:700;color:var(--tx2);display:block;margin-bottom:3px">Cloud Name *</label>
+        <input id="cld-cloudName" type="text" placeholder="contoh: dpupr-karanganyar" style="width:100%;padding:6px 9px;border:1px solid var(--bd2);border-radius:var(--r);font-size:12px;font-family:inherit;color:var(--tx);background:var(--sur);outline:none">
+        <div style="font-size:10px;color:var(--tx3);margin-top:3px">Terlihat di dashboard Cloudinary pojok kiri atas</div>
+      </div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:11px;font-weight:700;color:var(--tx2);display:block;margin-bottom:3px">Upload Preset *</label>
+        <input id="cld-uploadPreset" type="text" placeholder="contoh: bukti_setor_unsigned" style="width:100%;padding:6px 9px;border:1px solid var(--bd2);border-radius:var(--r);font-size:12px;font-family:inherit;color:var(--tx);background:var(--sur);outline:none">
+        <div style="font-size:10px;color:var(--tx3);margin-top:3px">Settings → Upload → Upload presets → Tambah preset (mode: <strong>Unsigned</strong>)</div>
+      </div>
+      <div id="cld-cfg-result"></div>
+    </div>
+    <div class="mf">
+      <button class="btn" onclick="closeMo('mo-cldcfg')">Batal</button>
+      <button class="btn" onclick="cldTestCfg()" style="margin-right:auto"><i class="ti ti-plug"></i> Test</button>
+      <button class="btn btn-p" onclick="cldSaveCfg()"><i class="ti ti-device-floppy"></i> Simpan</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
