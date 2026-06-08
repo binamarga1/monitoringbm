@@ -792,10 +792,11 @@ async function ciUploadPdf(i, inputEl){
     fd.append('file', file);
     fd.append('upload_preset', cfg.uploadPreset);
     fd.append('folder', 'bukti_setor');
-    fd.append('resource_type', 'raw');
+    // resource_type 'image' agar Cloudinary generate URL publik untuk PDF
+    fd.append('resource_type', 'image');
 
     const res = await fetch(
-      `https://api.cloudinary.com/v1_1/${cfg.cloudName}/raw/upload`,
+      `https://api.cloudinary.com/v1_1/${cfg.cloudName}/image/upload`,
       { method:'POST', body: fd }
     );
     if(!res.ok){
@@ -803,6 +804,7 @@ async function ciUploadPdf(i, inputEl){
       throw new Error(err.error?.message || 'Upload gagal ('+res.status+')');
     }
     const data = await res.json();
+    // Gunakan secure_url langsung — sudah public
     const url = data.secure_url;
 
     if(tempCi[i]) tempCi[i].pdfUrl = url;
