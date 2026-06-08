@@ -139,8 +139,18 @@ tr:hover td{background:#fafbfc}
 /* modal */
 .mo{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100;justify-content:center;align-items:flex-start;padding:36px 12px;overflow-y:auto}
 .mo.open{display:flex}
-.md{background:var(--sur);border-radius:var(--rl);width:740px;max-width:98vw;box-shadow:0 8px 40px rgba(0,0,0,.18)}
+.md{background:var(--sur);border-radius:var(--rl);width:740px;max-width:98vw;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.18)}
 .md-sm{width:480px}
+@media(max-width:640px){
+  .mo{padding:0!important;align-items:flex-end!important}
+  .md{width:100%!important;max-width:100%!important;max-height:94vh!important;border-radius:16px 16px 0 0!important}
+  .md-sm{width:100%!important}
+  .mh{padding:14px 16px 10px!important}
+  .mb{padding:12px 14px!important}
+  .mf{padding:10px 14px!important}
+  .fg2{grid-template-columns:1fr!important}
+  .fgi{grid-column:span 1!important}
+}
 .mh{padding:14px 18px;border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between}
 .mh h2{font-size:14px;font-weight:700}
 .mc{background:none;border:none;cursor:pointer;font-size:18px;color:var(--tx3);padding:0;line-height:1}
@@ -158,9 +168,37 @@ tr:hover td{background:#fafbfc}
 .fsec{font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.07em;margin:14px 0 8px;padding-bottom:4px;border-bottom:1px solid var(--bd)}
 
 /* cicilan rows */
-.ci-row{display:grid;grid-template-columns:130px 1fr 120px 30px;gap:5px;align-items:center;margin-bottom:5px}
-.ci-row input{padding:5px 7px;border:1px solid var(--bd2);border-radius:var(--r);font-size:11px;font-family:inherit;color:var(--tx);background:var(--sur);width:100%}
-.ci-del{background:none;border:1px solid var(--bd2);border-radius:var(--r);cursor:pointer;width:26px;height:26px;display:flex;align-items:center;justify-content:center;color:var(--red);font-size:13px}
+/* ci-row: satu baris per setoran, rapi di desktop & mobile */
+.ci-row{display:grid;grid-template-columns:130px 150px 1fr auto auto;gap:5px;align-items:center;margin-bottom:6px;background:var(--sur2);border:1px solid var(--bd);border-radius:var(--r);padding:6px 8px}
+.ci-row input{padding:5px 7px;border:1px solid var(--bd2);border-radius:var(--r);font-size:12px;font-family:inherit;color:var(--tx);background:var(--sur);width:100%;min-width:0}
+.ci-row input[type=date]{font-size:11px}
+.ci-del{background:none;border:1px solid var(--bd2);border-radius:var(--r);cursor:pointer;width:28px;height:28px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--redtx);font-size:13px;transition:.12s}
+.ci-del:hover{background:var(--redbg);border-color:#f8b4b4}
+/* pdf button */
+.ci-pdf-btn{display:inline-flex;align-items:center;gap:4px;padding:0 10px;height:28px;border-radius:var(--r);font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--bd2);background:var(--sur);color:var(--tx2);white-space:nowrap;transition:.15s;flex-shrink:0;font-family:inherit}
+.ci-pdf-btn:hover{border-color:var(--blue);color:var(--blue);background:var(--bluebg)}
+.ci-pdf-btn.has-file{background:var(--bluebg);border-color:#bfdbfe;color:var(--bluetx)}
+.ci-pdf-btn.uploading{background:var(--amberbg);border-color:#fcd34d;color:var(--ambertx);pointer-events:none}
+.ci-pdf-btn.error{background:var(--redbg);border-color:#f8b4b4;color:var(--redtx)}
+.ci-pdf-input{display:none}
+/* mobile responsive */
+@media(max-width:600px){
+  .page{padding:12px 14px}
+  .topbar{padding:10px 14px;gap:8px}
+  .topbar-r .btn-sm span{display:none}
+  .sg{grid-template-columns:1fr 1fr}
+  .tw{font-size:11px}
+  th,td{padding:5px 7px}
+  .sidebar{width:200px}
+  #sync-badge span:last-child{display:none}
+  .ci-row{grid-template-columns:1fr 1fr;grid-template-rows:auto auto;gap:4px;padding:8px}
+  .ci-row input[type=date]{grid-column:1}
+  .ci-row input[type=number]{grid-column:2}
+  .ci-row input[type=text]{grid-column:1/3}
+  .ci-row .ci-pdf-input{display:none}
+  .ci-row .ci-pdf-btn{grid-column:1;font-size:11px}
+  .ci-row .ci-del{grid-column:2;justify-self:end}
+}
 
 /* action buttons */
 .ab{display:flex;gap:3px}
@@ -443,7 +481,7 @@ tr:hover td{background:#fafbfc}
       </div>
       <div class="fsec">Histori Setoran / Cicilan</div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px">
-        <span style="font-size:11px;color:var(--tx3)">Tanggal &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Jumlah (Rp) &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; No. Bukti Setor &nbsp;&nbsp;&nbsp;&nbsp; Bukti PDF</span>
+        <div style="display:grid;grid-template-columns:130px 150px 1fr auto auto;gap:5px;padding:0 8px;font-size:10px;color:var(--tx3);font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px"><span>Tanggal</span><span>Jumlah (Rp)</span><span>No. Bukti Setor</span><span style="min-width:90px">Bukti PDF</span><span style="width:28px"></span></div>
         <button class="btn btn-sm" onclick="addCi()"><i class="ti ti-plus"></i>Tambah Setoran</button>
       </div>
       <div id="ci-list"></div>
@@ -691,18 +729,12 @@ function openEdit(id){
 }
 function rCiList(){
   document.getElementById('ci-list').innerHTML=tempCi.map((c,i)=>{
-    // PDF button state
-    let pdfBtn = '';
-    if(c.pdfUrl){
-      pdfBtn = `<button class="ci-pdf-btn has-file" onclick="ciOpenPdf(${i})" title="Lihat/Ganti PDF">
-        <i class="ti ti-file-type-pdf"></i><span>Lihat PDF</span></button>`;
-    } else {
-      pdfBtn = `<button class="ci-pdf-btn" onclick="ciPickPdf(${i})" title="Upload bukti PDF">
-        <i class="ti ti-upload"></i><span>Upload PDF</span></button>`;
-    }
+    const pdfBtn = c.pdfUrl
+      ? `<button class="ci-pdf-btn has-file" onclick="ciOpenPdf(${i})" title="Lihat/Ganti PDF"><i class="ti ti-file-type-pdf"></i><span>Lihat PDF</span></button>`
+      : `<button class="ci-pdf-btn" onclick="ciPickPdf(${i})" title="Upload bukti PDF"><i class="ti ti-upload"></i><span>Upload PDF</span></button>`;
     return `<div class="ci-row" id="ci-row-${i}">
       <input type="date" value="${c.t||''}" oninput="updCi(${i},'t',this.value)">
-      <input type="number" value="${c.j||''}" placeholder="Jumlah (Rp)" oninput="updCi(${i},'j',+this.value)">
+      <input type="number" value="${c.j||''}" placeholder="Jumlah (Rp)" oninput="updCi(${i},'j',+this.value)" style="text-align:right">
       <input type="text" value="${c.b||''}" placeholder="No. bukti setor" oninput="updCi(${i},'b',this.value)">
       <input type="file" accept="application/pdf" class="ci-pdf-input" id="ci-pdf-input-${i}" onchange="ciUploadPdf(${i},this)">
       ${pdfBtn}
@@ -1419,9 +1451,47 @@ async function fbTestOnly() {
   resEl.innerHTML = '<div class="al blue" style="margin-top:4px;background:var(--greenbg);color:var(--greentx);border-color:#a7f3d0"><i class="ti ti-check"></i><span>✓ Format konfigurasi valid — klik <strong>Simpan &amp; Hubungkan</strong> untuk memulai koneksi ke Firebase.</span></div>';
 }
 
+// ── MOBILE SIDEBAR ──
+function checkMobile(){
+  const isMobile = window.innerWidth <= 600;
+  const btn = document.getElementById('btn-menu');
+  const sb = document.querySelector('.sidebar');
+  if(btn) btn.style.display = isMobile ? 'block' : 'none';
+  if(sb && isMobile) sb.style.display = sb.dataset.open === '1' ? 'flex' : 'none';
+  if(sb && !isMobile) sb.style.display = '';
+}
+function toggleSidebar(){
+  const sb = document.querySelector('.sidebar');
+  if(!sb) return;
+  const isOpen = sb.dataset.open === '1';
+  sb.dataset.open = isOpen ? '0' : '1';
+  sb.style.display = isOpen ? 'none' : 'flex';
+  // backdrop
+  let bd = document.getElementById('sb-backdrop');
+  if(!isOpen){
+    if(!bd){ bd=document.createElement('div'); bd.id='sb-backdrop'; bd.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:49'; bd.onclick=toggleSidebar; document.body.appendChild(bd); }
+    bd.style.display='block';
+    sb.style.cssText += ';position:fixed;top:0;left:0;height:100vh;z-index:50;width:220px;';
+  } else {
+    if(bd) bd.style.display='none';
+    sb.style.position='';
+    sb.style.zIndex='';
+    sb.style.width='';
+  }
+}
+window.addEventListener('resize', checkMobile);
+checkMobile();
+
 // ── NAV BINDING ──
 document.querySelectorAll('.ni').forEach(n =>
-  n.addEventListener('click', function() { goPage(this.dataset.page); })
+  n.addEventListener('click', function() {
+    goPage(this.dataset.page);
+    // close sidebar on mobile after nav
+    if(window.innerWidth <= 600){
+      const sb = document.querySelector('.sidebar');
+      if(sb && sb.dataset.open==='1') toggleSidebar();
+    }
+  })
 );
 
 // ── HOST INFO ──
