@@ -793,7 +793,8 @@ async function ciUploadPdf(i, inputEl){
     fd.append('upload_preset', cfg.uploadPreset);
     fd.append('folder', 'bukti_setor');
     fd.append('resource_type', 'raw');
-    fd.append('access_mode', 'public');   // paksa URL publik
+    // Catatan: access_mode tidak boleh dikirim pada unsigned upload
+    // Public access diatur di Upload Preset Cloudinary (Access control = public)
 
     const res = await fetch(
       `https://api.cloudinary.com/v1_1/${cfg.cloudName}/raw/upload`,
@@ -804,11 +805,8 @@ async function ciUploadPdf(i, inputEl){
       throw new Error(err.error?.message || 'Upload gagal ('+res.status+')');
     }
     const data = await res.json();
-    // Ganti URL agar bisa dibuka langsung di browser sebagai PDF
-    // Format: /fl_attachment/ agar browser download, atau /fl_inline/ agar preview
-    const rawUrl = data.secure_url;
-    // Sisipkan fl_attachment:false untuk force inline (preview di browser)
-    const url = rawUrl.replace('/raw/upload/', '/raw/upload/fl_attachment:false/');
+    // URL langsung dari Cloudinary — sudah public jika preset diset benar
+    const url = data.secure_url;
 
     if(tempCi[i]) tempCi[i].pdfUrl = url;
     if(tempCi[i] && !tempCi[i].b) tempCi[i].b = file.name.replace(/\.pdf$/i,'');
