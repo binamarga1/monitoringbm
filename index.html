@@ -805,8 +805,12 @@ async function ciUploadPdf(i, inputEl){
       throw new Error(err.error?.message || 'Upload gagal ('+res.status+')');
     }
     const data = await res.json();
-    // URL langsung dari Cloudinary — sudah public jika preset diset benar
-    const url = data.secure_url;
+    // Tambahkan fl_attachment:false agar Cloudinary serve dengan CORS header yang benar
+    const rawUrl = data.secure_url;
+    // fl_attachment:false = inline content disposition, membantu CORS
+    const url = rawUrl.includes('/raw/upload/')
+      ? rawUrl.replace('/raw/upload/', '/raw/upload/fl_attachment:false/')
+      : rawUrl;
 
     if(tempCi[i]) tempCi[i].pdfUrl = url;
     if(tempCi[i] && !tempCi[i].b) tempCi[i].b = file.name.replace(/\.pdf$/i,'');
@@ -847,19 +851,17 @@ function ciOpenPdf(i){
 
 function viewPdf(url){
   if(!url) return;
-  // Buka PDF via Google Docs Viewer agar bisa preview di semua browser
-  const viewer = 'https://docs.google.com/viewer?embedded=true&url=' + encodeURIComponent(url);
-  // Buka modal preview PDF
+  // Gunakan PDF.js viewer (Mozilla) — berjalan di browser, tidak butuh server perantara
+  const pdfjs = 'https://mozilla.github.io/pdf.js/web/viewer.html?file=' + encodeURIComponent(url);
   const mo = document.getElementById('mo-pdfview');
   const iframe = document.getElementById('pdf-iframe');
   const title = document.getElementById('pdf-iframe-title');
   if(mo && iframe){
-    iframe.src = viewer;
+    iframe.src = pdfjs;
     if(title) title.textContent = 'Memuat PDF…';
     mo.classList.add('open');
   } else {
-    // Fallback: buka di tab baru
-    window.open(viewer, '_blank');
+    window.open(pdfjs, '_blank');
   }
 }
 
