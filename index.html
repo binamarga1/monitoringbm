@@ -1258,7 +1258,29 @@ const CLOUDINARY_CONFIG = {
 const CLD_CFG_KEY = 'bpk_cloudinary_cfg';
 
 let fbApp = null, fbDb = null, fbUnsubscribe = null, fbUnsubscribeAlamat = null;
-let ALAMAT_PJ = {};  // { 'CV. Nama': 'Jl. Alamat...' }
+let ALAMAT_PJ = {
+  'CV. Anugrah Lima Utama': 'Perum Madu Asri A37 Kel. Gawanan, Kec. Colomadu, Kab. Karanganyar',
+  'CV. Bumi Anugerah Putra': 'Bodo RT.01 RW.03 Kragan, Gondangrejo',
+  'CV. Central Karya': 'Jl. Dr Soeharso KM 1,5 Kel. Jungke, Karanganyar',
+  'CV. Ganefo': 'Ngemplak RT.04 RW.05 Wonolopo, Tasikmadu',
+  'CV. Jaya Sempurna Abadi': 'Jalan Sadewa  Blok N No. 17 Solo Baru Sektor 7, Telukan, Grogol, Sukoharjo, Jawa Tengah',
+  'CV. Karya Agung': 'Danyung RT.003 RW.002 Desa Kwarasan Kec. Grogol, Kab. Sukoharjo',
+  'CV. Karya Utama': 'Sawur RT.03 RW.03 Genengsari, Polokarto, Sukoharjo',
+  'CV. Kedaton': 'RT. 35 RW. 06 Desa Tasikmadu Kecamatan Watulimo Kabupaten Trenggalek',
+  'CV. Mitra Karya Lima': 'Sumber RT.003 RW.013, Kel. Sumber, Kec. Banjarsari, Kota Surakarta',
+  'CV. Mustika Bukit Jajar': 'RT.19 RW.09 Desa Ngadirenggo Kecamatan Pogalan',
+  'CV. Perisai Bangsa': 'Ngijo Tengah RT. 07 RW.02 Ngijo, Tasikmadu, Karanganyar',
+  'CV. Perwita Utami': 'Pasekan RT.006 RW.006 Desa Gantiwarno Kecamatan Matesih, Kab. Karanganyar',
+  'CV. Putra Cakra Bersaudara': 'Triyagan RT. 03/06 Desa Triyagan, Kec. Mojolaban, Sukoharjo',
+  'CV. Putra Kalingga': 'Ngasinan RT.03 RW.12 Jebres, Surakarta',
+  'CV. Redjo Pawiro': 'Jembangan RT.04 RW. 03 Kaling Tasikmadu',
+  'CV. Sami Asih': 'Ngijo Kulon RT.02/I Ngijo Tasikmadu',
+  'CV. Sigra Teknik': 'Mandungan RT.01 RW.04 Jungke, Karanganyar',
+  'CV. Sosro Karya': 'Jl. Monginsidi No.42 RT.02/04 Tegalgede, Karanganyar',
+  'CV. Yogya Resita': 'Ngaran - Sajen, Wonosari, Trucuk Klaten',
+  'PT. Panca Darma Puspa Wira': 'Jl. Jen. Basuki Rahmat No. 18 Surakarta',
+  'PT. Triyagan Harmet Perkasa': 'Triyagan RT.03/06 Desa Triyagan, Kecamatan Mojolaban, Kabupaten Sukoharjo'
+};  // Seed data alamat penyedia jasa (21 penyedia, dari data DPUPR)
 let fbReady = false, fbConfigured = false;
 
 // ── DEFAULT DATA ──
@@ -1277,18 +1299,18 @@ const DEFAULT_DATA = [
     {id:12,nm:'Pelebaran Jalan Trengguli–Lempong (Denda)',py:'CV. Ganefo',nk:'',vk:0,ppk:'',pptk:'',sb:'LKPD 2023',jn:'Denda Keterlambatan',kat:'Belanja Modal Jalan',ta:'2023',tm:34639000,st:'Belum Setor',pj:0,kl:'A',ci:[],s1n:'',s1t:'',s2n:'',s2t:'',s3n:'',s3t:'',th:0,ct:'Belum ada respons. Terpisah dari temuan PDTT 2024.'},
     {id:13,nm:'Pelebaran Jalan Karan–Bumi Perkemahan (Denda)',py:'CV. Anugerah Sankara Rizki',nk:'',vk:0,ppk:'',pptk:'',sb:'LKPD 2023',jn:'Denda Keterlambatan',kat:'Belanja Modal Jalan',ta:'2023',tm:482127000,st:'Cicilan',pj:0,kl:'B',ci:[{t:'2025-10-31',j:40000000,b:''},{t:'2025-12-22',j:96425000,b:''}],s1n:'',s1t:'',s2n:'',s2t:'',s3n:'',s3t:'',th:1,ct:'Sisa denda terbesar. Perjanjian angsuran belum ada.'},
     {id:14,nm:'Rehabilitasi Jalan Karangpandan–Blora (Ruas 89)',py:'CV. Redjo Pawiro',nk:'05.9/MK/PPK.1/XI/2025',vk:4351337879,ppk:'',pptk:'',sb:'LKPD 2025',jn:'Kurang Volume',kat:'Belanja Modal Jalan',ta:'2025',tm:192082000,st:'Belum Setor',pj:0,kl:'C',ci:[],s1n:'',s1t:'',s2n:'',s2t:'',s3n:'',s3t:'',th:0,ct:'Kooperatif — paket lain sudah lunas. Komunikasi informal sudah dilakukan.'},
-    {id:15,nm:'Rehabilitasi Jalan Karanganyar–Ngadiluwih (Ruas 27)',py:'CV. Anugrah Lima Utama',nk:'SP/PAKET-5.2.PPK/III/2025',vk:3685625000,ppk:'',pptk:'',sb:'LKPD 2025',jn:'Kurang Volume',kat:'Belanja Modal Jalan',ta:'2025',tm:67464000,st:'Belum Setor',pj:0,kl:'C',ci:[],s1n:'',s1t:'',s2n:'',s2t:'',s3n:'',s3t:'',th:0,ct:''},
-    {id:16,nm:'Rekonstruksi Jalan Palur–Dalon (Ruas 41)',py:'CV. Anugrah Lima Utama',nk:'04.9/MK/PPK.1/X/2025',vk:4718188138,ppk:'',pptk:'',sb:'LKPD 2025',jn:'Kurang Volume',kat:'Belanja Modal Jalan',ta:'2025',tm:148129000,st:'Belum Setor',pj:0,kl:'C',ci:[],s1n:'',s1t:'',s2n:'',s2t:'',s3n:'',s3t:'',th:0,ct:''},
-    {id:17,nm:'Rekonstruksi Jalan Ngangkruk–Jeruksawit (Ruas 24)',py:'PT. Panca Darma Puspa Wira',nk:'02.9/MK/PPK.1/X/2025',vk:14498861493,ppk:'',pptk:'',sb:'LKPD 2025',jn:'Kurang Volume',kat:'Belanja Modal Jalan',ta:'2025',tm:32267000,st:'Belum Setor',pj:0,kl:'C',ci:[],s1n:'',s1t:'',s2n:'',s2t:'',s3n:'',s3t:'',th:0,ct:''},
-    {id:18,nm:'Rekonstruksi Jalan Kebakkramat–Dalon (Ruas 44)',py:'CV. Jaya Sempurna Abadi',nk:'03.9/MK/PPK.1/X/2025',vk:9000581657,ppk:'',pptk:'',sb:'LKPD 2025',jn:'Kurang Volume',kat:'Belanja Modal Jalan',ta:'2025',tm:266485000,st:'Belum Setor',pj:0,kl:'C',ci:[],s1n:'',s1t:'',s2n:'',s2t:'',s3n:'',s3t:'',th:0,ct:'NILAI TERBESAR LHP 2025 — prioritas utama.'},
+    {id:15,nm:'Rehabilitasi Jalan Karanganyar–Ngadiluwih (Ruas 27)',py:'CV. Anugrah Lima Utama',nk:'SP/PAKET-5.2.PPK/III/2025',vk:3685625000,ppk:'',pptk:'',sb:'LKPD 2025',jn:'Kurang Volume',kat:'Belanja Modal Jalan',ta:'2025',tm:67464000,st:'Lunas',pj:0,kl:'C',ci:[{t:'2026-05-20',j:67464000,b:''}],s1n:'',s1t:'',s2n:'',s2t:'',s3n:'',s3t:'',th:0,ct:''},
+    {id:16,nm:'Rekonstruksi Jalan Palur–Dalon (Ruas 41)',py:'CV. Anugrah Lima Utama',nk:'04.9/MK/PPK.1/X/2025',vk:4718188138,ppk:'',pptk:'',sb:'LKPD 2025',jn:'Kurang Volume',kat:'Belanja Modal Jalan',ta:'2025',tm:148129000,st:'Lunas',pj:0,kl:'C',ci:[{t:'2026-05-20',j:148129000,b:''}],s1n:'',s1t:'',s2n:'',s2t:'',s3n:'',s3t:'',th:0,ct:''},
+    {id:17,nm:'Rekonstruksi Jalan Ngangkruk–Jeruksawit (Ruas 24)',py:'PT. Panca Darma Puspa Wira',nk:'02.9/MK/PPK.1/X/2025',vk:14498861493,ppk:'',pptk:'',sb:'LKPD 2025',jn:'Kurang Volume',kat:'Belanja Modal Jalan',ta:'2025',tm:32267000,st:'Lunas',pj:0,kl:'C',ci:[{t:'2026-05-20',j:32267000,b:''}],s1n:'',s1t:'',s2n:'',s2t:'',s3n:'',s3t:'',th:0,ct:''},
+    {id:18,nm:'Rekonstruksi Jalan Kebakkramat–Dalon (Ruas 44)',py:'CV. Jaya Sempurna Abadi',nk:'03.9/MK/PPK.1/X/2025',vk:9000581657,ppk:'',pptk:'',sb:'LKPD 2025',jn:'Kurang Volume',kat:'Belanja Modal Jalan',ta:'2025',tm:266485000,st:'Lunas',pj:0,kl:'C',ci:[{t:'2026-05-20',j:266485000,b:''}],s1n:'',s1t:'',s2n:'',s2t:'',s3n:'',s3t:'',th:0,ct:'NILAI TERBESAR LHP 2025 — prioritas utama.'},
     {id:19,nm:'Rehabilitasi Jalan Dalon–Ngrancang (Ruas 37)',py:'CV. Perisai Bangsa',nk:'01.6/MK/PPK.5/X/2025',vk:734826285,ppk:'',pptk:'',sb:'LKPD 2025',jn:'Kurang Volume',kat:'Belanja Modal Jalan',ta:'2025',tm:3469000,st:'Belum Setor',pj:0,kl:'C',ci:[],s1n:'',s1t:'',s2n:'',s2t:'',s3n:'',s3t:'',th:0,ct:''},
     {id:20,nm:'Rehabilitasi Jalan Ngadiluwih–Matesih (Ruas 142)',py:'CV. Putra Kalingga',nk:'SP/Kons.Ngad-Mtsh.2.PPK/V/2025',vk:4179255000,ppk:'',pptk:'',sb:'LKPD 2025',jn:'Kurang Volume',kat:'Belanja Modal Jalan',ta:'2025',tm:77099000,st:'Belum Setor',pj:0,kl:'C',ci:[],s1n:'',s1t:'',s2n:'',s2t:'',s3n:'',s3t:'',th:0,ct:'3 paket sekaligus (Ruas 142+Jumapolo+Ruas 157), total Rp 260 juta.'},
     {id:21,nm:'Peningkatan Jalan Jumapolo–Jumantono',py:'CV. Putra Kalingga',nk:'EP-01K2KZHBA1P3WQM9K2Y4H7HHCD',vk:5501983000,ppk:'',pptk:'',sb:'LKPD 2025',jn:'Kurang Volume',kat:'Belanja Modal Jalan',ta:'2025',tm:72981000,st:'Belum Setor',pj:0,kl:'C',ci:[],s1n:'',s1t:'',s2n:'',s2t:'',s3n:'',s3t:'',th:0,ct:''},
     {id:22,nm:'Pelebaran Jalan Tlobosempon–Matesih (Ruas 157)',py:'CV. Putra Kalingga',nk:'02.7/MK/PPK.4/XI/2025',vk:5315184828,ppk:'',pptk:'',sb:'LKPD 2025',jn:'Kurang Volume',kat:'Belanja Modal Jalan',ta:'2025',tm:110016000,st:'Belum Setor',pj:0,kl:'C',ci:[],s1n:'',s1t:'',s2n:'',s2t:'',s3n:'',s3t:'',th:0,ct:''},
-    {id:23,nm:'Rehabilitasi Jalan Ombang-ombang–Blumbang & Kalisoro Kemantren (Ruas 128)',py:'CV. Putra Cakra Bersaudara',nk:'01.6/MK/PPK.4/X/2025',vk:5825184789,ppk:'',pptk:'',sb:'LKPD 2025',jn:'Kurang Volume',kat:'Belanja Modal Jalan',ta:'2025',tm:112443000,st:'Belum Setor',pj:0,kl:'C',ci:[],s1n:'',s1t:'',s2n:'',s2t:'',s3n:'',s3t:'',th:0,ct:''},
+    {id:23,nm:'Rehabilitasi Jalan Ombang-ombang–Blumbang & Kalisoro Kemantren (Ruas 128)',py:'CV. Putra Cakra Bersaudara',nk:'01.6/MK/PPK.4/X/2025',vk:5825184789,ppk:'',pptk:'',sb:'LKPD 2025',jn:'Kurang Volume',kat:'Belanja Modal Jalan',ta:'2025',tm:112443000,st:'Lunas',pj:0,kl:'C',ci:[{t:'2026-06-02',j:112443000,b:''}],s1n:'',s1t:'',s2n:'',s2t:'',s3n:'',s3t:'',th:0,ct:''},
     {id:24,nm:'Rehabilitasi Jalan Kerjo–Seloromo (Ruas 100)',py:'CV. Sigra Teknik',nk:'EP.01K3FQ6Z0WNP7A166PBQKS70RD',vk:3714898000,ppk:'',pptk:'',sb:'LKPD 2025',jn:'Kurang Volume',kat:'Belanja Modal Jalan',ta:'2025',tm:181638000,st:'Belum Setor',pj:0,kl:'C',ci:[],s1n:'',s1t:'',s2n:'',s2t:'',s3n:'',s3t:'',th:0,ct:'Pembayaran kontrak baru 90%.'},
-    {id:25,nm:'Rekonstruksi Jalan Sudimoro–Ngargoyoso (Ruas 114)',py:'PT. Triyagan Harmet Perkasa',nk:'06.9/MK/PPK.1/XI/2025',vk:14753711493,ppk:'',pptk:'',sb:'LKPD 2025',jn:'Kurang Volume',kat:'Belanja Modal Jalan',ta:'2025',tm:200115000,st:'Belum Setor',pj:0,kl:'C',ci:[],s1n:'',s1t:'',s2n:'',s2t:'',s3n:'',s3t:'',th:0,ct:'Pembayaran kontrak baru 90%.'},
-    {id:26,nm:'Pemeliharaan Rutin Jalan Lawu – Paket 16 (Barjas)',py:'CV. Mitra Karya Lima',nk:'03.9/MK/PPK.5/X/2025',vk:1809977174,ppk:'',pptk:'',sb:'LKPD 2025',jn:'Kelebihan Pembayaran',kat:'Belanja Barang/Jasa',ta:'2025',tm:28326000,st:'Belum Setor',pj:0,kl:'C',ci:[],s1n:'',s1t:'',s2n:'',s2t:'',s3n:'',s3t:'',th:0,ct:''},
+    {id:25,nm:'Rekonstruksi Jalan Sudimoro–Ngargoyoso (Ruas 114)',py:'PT. Triyagan Harmet Perkasa',nk:'06.9/MK/PPK.1/XI/2025',vk:14753711493,ppk:'',pptk:'',sb:'LKPD 2025',jn:'Kurang Volume',kat:'Belanja Modal Jalan',ta:'2025',tm:200115000,st:'Lunas',pj:0,kl:'C',ci:[{t:'2026-06-02',j:200115000,b:''}],s1n:'',s1t:'',s2n:'',s2t:'',s3n:'',s3t:'',th:0,ct:'Pembayaran kontrak baru 90%.'},
+    {id:26,nm:'Pemeliharaan Rutin Jalan Lawu – Paket 16 (Barjas)',py:'CV. Mitra Karya Lima',nk:'03.9/MK/PPK.5/X/2025',vk:1809977174,ppk:'',pptk:'',sb:'LKPD 2025',jn:'Kelebihan Pembayaran',kat:'Belanja Barang/Jasa',ta:'2025',tm:28326000,st:'Lunas',pj:0,kl:'C',ci:[{t:'2026-05-20',j:28326000,b:''}],s1n:'',s1t:'',s2n:'',s2t:'',s3n:'',s3t:'',th:0,ct:''},
     {id:27,nm:'Peningkatan Jalan Menuju SMP Bhayangkara',py:'CV. Karya Utama',nk:'',vk:883458000,ppk:'',pptk:'',sb:'LKPD 2025',jn:'Kurang Volume',kat:'Belanja Barang/Jasa',ta:'2025',tm:35768000,st:'Belum Setor',pj:0,kl:'C',ci:[],s1n:'',s1t:'',s2n:'',s2t:'',s3n:'',s3t:'',th:0,ct:''},
     {id:28,nm:'Rehabilitasi Jalan Gempol–Suruh Kalang',py:'CV. Karya Utama',nk:'',vk:615184000,ppk:'',pptk:'',sb:'LKPD 2025',jn:'Kurang Volume',kat:'Belanja Barang/Jasa',ta:'2025',tm:3323000,st:'Belum Setor',pj:0,kl:'C',ci:[],s1n:'',s1t:'',s2n:'',s2t:'',s3n:'',s3t:'',th:0,ct:''},
     {id:29,nm:'Rehabilitasi Jalan RW 14 Banaran Jantiharjo',py:'CV. Bumi Anugerah Putra',nk:'',vk:198432000,ppk:'',pptk:'',sb:'LKPD 2025',jn:'Kurang Volume',kat:'Belanja Barang/Jasa',ta:'2025',tm:8138000,st:'Belum Setor',pj:0,kl:'C',ci:[],s1n:'',s1t:'',s2n:'',s2t:'',s3n:'',s3t:'',th:0,ct:''},
@@ -1389,10 +1411,27 @@ async function fbInit() {
     const docRef = fbDb.collection(FB_COLLECTION).doc(FB_DOC);
     const alamatRef = fbDb.collection(FB_COLLECTION).doc(FB_ALAMAT_DOC);
 
-    // Check if alamat document exists; if not, initialize empty
+    // Check if alamat document exists; if not, initialize with seed data
     const alamatSnap = await alamatRef.get();
     if (!alamatSnap.exists) {
-      await alamatRef.set({ data: {}, updatedAt: new Date().toISOString() });
+      // Dokumen belum ada sama sekali -> pakai seed data lengkap
+      await alamatRef.set({ data: ALAMAT_PJ, updatedAt: new Date().toISOString() });
+    } else {
+      // Dokumen sudah ada (mungkin masih kosong dari inisialisasi sebelumnya).
+      // Merge seed ALAMAT_PJ untuk penyedia yang belum punya alamat tersimpan,
+      // tanpa menimpa alamat yang sudah diisi manual oleh pengguna.
+      const existing = (alamatSnap.data() || {}).data || {};
+      let needsMerge = false;
+      const merged = { ...existing };
+      for (const [py, alamat] of Object.entries(ALAMAT_PJ)) {
+        if (!merged[py] || !merged[py].trim()) {
+          merged[py] = alamat;
+          needsMerge = true;
+        }
+      }
+      if (needsMerge) {
+        await alamatRef.set({ data: merged, updatedAt: new Date().toISOString() });
+      }
     }
 
     // Subscribe real-time listener untuk alamat penyedia (terpisah dari data utama)
