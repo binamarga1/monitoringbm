@@ -325,7 +325,7 @@ tr:hover td{background:#fafbfc}
       </select>
     </div>
     <div class="tw"><table><thead><tr>
-      <th>#</th><th>Penyedia Jasa</th><th>Nama Paket</th><th>Sumber</th><th>PPK</th>
+      <th>#</th><th>Penyedia Jasa</th><th>Nama Paket</th><th>Sumber</th><th>Alamat Penyedia</th>
       <th class="nr">Temuan (Rp)</th><th class="nr">Sudah Setor (Rp)</th><th class="nr">Sisa (Rp)</th>
       <th>%</th><th>Tahap</th><th>Status</th><th>Aksi</th>
     </tr></thead><tbody id="tbl-semua"></tbody></table></div>
@@ -370,7 +370,8 @@ tr:hover td{background:#fafbfc}
       <div class="fsec">Informasi Paket</div>
       <div class="fg2" style="margin-bottom:10px">
         <div class="fgi full"><label>Nama Paket Pekerjaan *</label><input id="tNm" type="text" placeholder="Rehabilitasi Jalan …"></div>
-        <div class="fgi"><label>Penyedia Jasa *</label><input id="tPy" type="text" placeholder="CV. / PT. …"></div>
+        <div class="fgi"><label>Penyedia Jasa *</label><input id="tPy" type="text" placeholder="CV. / PT. …" oninput="autoFillAlamat('tPy','tAlamat')"></div>
+        <div class="fgi full"><label>Alamat Penyedia Jasa</label><input id="tAlamat" type="text" placeholder="Jl. … (otomatis terisi jika penyedia sudah pernah diinput)"></div>
         <div class="fgi"><label>Nomor Kontrak</label><input id="tNk" type="text"></div>
         <div class="fgi"><label>Nilai Kontrak (Rp)</label><input id="tVk" type="number" placeholder="0"></div>
         <div class="fgi"><label>Nama PPK</label><input id="tPpk" type="text"></div>
@@ -455,7 +456,8 @@ tr:hover td{background:#fafbfc}
       <div class="fsec">Informasi Paket</div>
       <div class="fg2">
         <div class="fgi full"><label>Nama Paket</label><input id="eNm" type="text"></div>
-        <div class="fgi"><label>Penyedia Jasa</label><input id="ePy" type="text"></div>
+        <div class="fgi"><label>Penyedia Jasa</label><input id="ePy" type="text" oninput="autoFillAlamat('ePy','eAlamat')"></div>
+        <div class="fgi full"><label>Alamat Penyedia Jasa</label><input id="eAlamat" type="text" placeholder="Jl. … (terpusat — berlaku utk semua paket penyedia ini)"></div>
         <div class="fgi"><label>No. Kontrak</label><input id="eNk" type="text"></div>
         <div class="fgi"><label>Nilai Kontrak (Rp)</label><input id="eVk" type="number"></div>
         <div class="fgi"><label>PPK</label><input id="ePpk" type="text"></div>
@@ -675,7 +677,7 @@ function rSemua(){
   });
   document.getElementById('tbl-semua').innerHTML=rows.map((d,i)=>{
     const st=getSetor(d),si=getSisa(d),p=pct(st,d.tm),rc=d.st==='Belum Setor'?'rr':d.st==='Cicilan'?'ra':'';
-    return`<tr class="${rc}"><td>${i+1}</td><td><strong>${d.py}</strong><br>${klBadge(d.kl)}</td><td style="font-size:11px;max-width:200px">${d.nm}</td><td>${d.sb}</td><td style="font-size:11px">${d.ppk||'—'}</td><td class="nr">${rp(d.tm)}</td><td class="nr">${rp(st)}</td><td class="nr" style="color:${si>0?'var(--red)':'var(--green)'};font-weight:700">${rp(si)}</td><td><div class="pb" style="width:55px"><div class="pbf" style="width:${p}%;background:${p===100?'#057a55':p>50?'#d97706':'#e02424'}"></div></div><span style="font-size:10px">${p}%</span></td><td>${thBadge(d.th)}</td><td>${stBadge(d.st)}</td><td><div class="ab"><button class="ib e" onclick="openEdit(${d.id})" title="Edit"><i class="ti ti-edit"></i></button><button class="ib" onclick="openHist(${d.id})" title="Histori"><i class="ti ti-coins"></i></button><button class="ib d" onclick="konfirmHapus(${d.id})" title="Hapus"><i class="ti ti-trash"></i></button></div></td></tr>`;
+    return`<tr class="${rc}"><td>${i+1}</td><td><strong>${d.py}</strong><br>${klBadge(d.kl)}</td><td style="font-size:11px;max-width:200px">${d.nm}</td><td>${d.sb}</td><td style="font-size:11px;max-width:160px;color:var(--tx2)">${getAlamat(d.py)||'<span style="color:var(--tx3)">— belum diisi</span>'}</td><td class="nr">${rp(d.tm)}</td><td class="nr">${rp(st)}</td><td class="nr" style="color:${si>0?'var(--red)':'var(--green)'};font-weight:700">${rp(si)}</td><td><div class="pb" style="width:55px"><div class="pbf" style="width:${p}%;background:${p===100?'#057a55':p>50?'#d97706':'#e02424'}"></div></div><span style="font-size:10px">${p}%</span></td><td>${thBadge(d.th)}</td><td>${stBadge(d.st)}</td><td><div class="ab"><button class="ib e" onclick="openEdit(${d.id})" title="Edit"><i class="ti ti-edit"></i></button><button class="ib" onclick="openHist(${d.id})" title="Histori"><i class="ti ti-coins"></i></button><button class="ib d" onclick="konfirmHapus(${d.id})" title="Hapus"><i class="ti ti-trash"></i></button></div></td></tr>`;
   }).join('');
   document.getElementById('cnt-semua').textContent=`Menampilkan ${rows.length} dari ${DATA.length} paket`;
 }
@@ -720,6 +722,7 @@ function openEdit(id){
   document.getElementById('mo-edit-ttl').textContent='Edit: '+d.py;
   const sv=(el,v)=>{const e=document.getElementById(el);if(e)e.value=v!==null&&v!==undefined?v:'';};
   sv('eNm',d.nm);sv('ePy',d.py);sv('eNk',d.nk);sv('eVk',d.vk);sv('ePpk',d.ppk);sv('ePptk',d.pptk);
+  sv('eAlamat', getAlamat(d.py));
   sv('eSb',d.sb);sv('eJn',d.jn);sv('eKat',d.kat);sv('eTA',d.ta);
   sv('eTm',d.tm);sv('eSt',d.st);sv('ePj',d.pj?'1':'0');sv('eKl',d.kl);
   sv('eS1n',d.s1n);sv('eS1t',d.s1t);sv('eS2n',d.s2n);sv('eS2t',d.s2t);
@@ -799,12 +802,12 @@ async function ciUploadPdf(i, inputEl){
     fd.append('file', file);
     fd.append('upload_preset', cfg.uploadPreset);
     fd.append('folder', 'bukti_setor');
-    fd.append('resource_type', 'raw');
-    // Catatan: access_mode tidak boleh dikirim pada unsigned upload
-    // Public access diatur di Upload Preset Cloudinary (Access control = public)
+    // Cloudinary resmi mengkategorikan PDF sebagai resource_type "image" (bukan "raw")
+    // Endpoint ini menghasilkan delivery URL yang publik & bisa di-fetch cross-origin
+    fd.append('resource_type', 'image');
 
     const res = await fetch(
-      `https://api.cloudinary.com/v1_1/${cfg.cloudName}/raw/upload`,
+      `https://api.cloudinary.com/v1_1/${cfg.cloudName}/image/upload`,
       { method:'POST', body: fd }
     );
     if(!res.ok){
@@ -812,12 +815,8 @@ async function ciUploadPdf(i, inputEl){
       throw new Error(err.error?.message || 'Upload gagal ('+res.status+')');
     }
     const data = await res.json();
-    // Tambahkan fl_attachment:false agar Cloudinary serve dengan CORS header yang benar
-    const rawUrl = data.secure_url;
-    // fl_attachment:false = inline content disposition, membantu CORS
-    const url = rawUrl.includes('/raw/upload/')
-      ? rawUrl.replace('/raw/upload/', '/raw/upload/fl_attachment:false/')
-      : rawUrl;
+    // secure_url dari endpoint image/upload — format: .../image/upload/v123/bukti_setor/nama.pdf
+    const url = data.secure_url;
 
     if(tempCi[i]) tempCi[i].pdfUrl = url;
     if(tempCi[i] && !tempCi[i].b) tempCi[i].b = file.name.replace(/\.pdf$/i,'');
@@ -891,8 +890,9 @@ async function viewPdf(url){
         'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     }
 
-    // Fetch PDF sebagai ArrayBuffer untuk bypass CORS
-    const response = await fetch(url);
+    // Fetch PDF sebagai ArrayBuffer — mode cors eksplisit agar browser
+    // mengirim & menerima header CORS dengan benar dari Cloudinary
+    const response = await fetch(url, { mode: 'cors', credentials: 'omit' });
     if(!response.ok) throw new Error('HTTP '+response.status);
     const arrayBuffer = await response.arrayBuffer();
 
@@ -906,7 +906,10 @@ async function viewPdf(url){
     console.error('PDF load error:', err);
     document.getElementById('pdf-loading').style.display = 'none';
     document.getElementById('pdf-error').style.display = 'block';
-    document.getElementById('pdf-error-msg').textContent = 'Gagal memuat PDF: ' + (err.message||'');
+    let msg = err.message || '';
+    if(msg.includes('HTTP 401')) msg = 'Akses ditolak (401). Periksa Access Control preset Cloudinary = Public.';
+    else if(msg.includes('Failed to fetch') || err.name === 'TypeError') msg = 'Gagal mengambil file (kemungkinan CORS atau jaringan).';
+    document.getElementById('pdf-error-msg').textContent = 'Gagal memuat PDF: ' + msg;
     const lnk = document.getElementById('pdf-direct-link');
     if(lnk) lnk.href = url;
   }
@@ -996,6 +999,7 @@ async function saveEdit(){
   const idx=DATA.findIndex(x=>x.id===editId);if(idx<0)return;
   const g=id=>document.getElementById(id).value;
   DATA[idx]={...DATA[idx],nm:g('eNm'),py:g('ePy'),nk:g('eNk'),vk:+g('eVk'),ppk:g('ePpk'),pptk:g('ePptk'),sb:g('eSb'),jn:g('eJn'),kat:g('eKat'),ta:g('eTA'),tm:+g('eTm'),st:g('eSt'),pj:+g('ePj'),kl:g('eKl'),s1n:g('eS1n'),s1t:g('eS1t'),s2n:g('eS2n'),s2t:g('eS2t'),s3n:g('eS3n'),s3t:g('eS3t'),th:+g('eTh'),ct:g('eCt'),ci:[...tempCi]};
+  await setAlamatPJ(g('ePy'), g('eAlamat'));
   await save();closeMo('mo-edit');toast('Perubahan disimpan');
   const cur=document.querySelector('.page.on').id.replace('pg-','');
   const renders={dashboard:rDash,semua:rSemua,belum:rBelum,cicilan:rCicilan,lhp25:rLhp25};
@@ -1028,9 +1032,23 @@ async function simpanBaru(){
   if(!g('tNm')||!g('tPy')){toast('Nama paket dan penyedia wajib diisi','err');return;}
   const newId=DATA.length?Math.max(...DATA.map(d=>d.id))+1:1;
   DATA.push({id:newId,nm:g('tNm'),py:g('tPy'),nk:g('tNk'),vk:+g('tVk'),ppk:g('tPpk'),pptk:g('tPptk'),sb:g('tSb'),jn:g('tJn'),kat:g('tKat'),ta:g('tTA'),tm:+g('tTm'),st:g('tSt'),pj:+g('tPj'),kl:g('tKl'),ci:[],s1n:g('tS1n'),s1t:g('tS1t'),s2n:g('tS2n'),s2t:g('tS2t'),s3n:g('tS3n'),s3t:g('tS3t'),th:+g('tTh'),ct:g('tCt')});
+  await setAlamatPJ(g('tPy'), g('tAlamat'));
   await save();toast('Paket berhasil ditambahkan');resetForm();
 }
-function resetForm(){['tNm','tPy','tNk','tVk','tPpk','tPptk','tTm','tS1n','tS1t','tS2n','tS2t','tS3n','tS3t','tCt'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});}
+function resetForm(){['tNm','tPy','tAlamat','tNk','tVk','tPpk','tPptk','tTm','tS1n','tS1t','tS2n','tS2t','tS3n','tS3t','tCt'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});}
+
+// ── AUTO-FILL ALAMAT: saat nama penyedia diketik, jika sudah ada di master, isi otomatis ──
+function autoFillAlamat(namaFieldId, alamatFieldId){
+  const namaEl = document.getElementById(namaFieldId);
+  const alamatEl = document.getElementById(alamatFieldId);
+  if(!namaEl || !alamatEl) return;
+  const nama = namaEl.value.trim();
+  const existing = getAlamat(nama);
+  // Hanya auto-isi jika field alamat masih kosong (jangan timpa input manual pengguna)
+  if(existing && !alamatEl.value.trim()){
+    alamatEl.value = existing;
+  }
+}
 
 // ── HAPUS ──
 function konfirmHapus(id){
@@ -1064,7 +1082,7 @@ function dlExcel(){
   try{
     var wb=XLSX.utils.book_new();
     var ws={};
-    var hdr=["No","Nama Paket","Penyedia Jasa","No Kontrak","Nilai Kontrak","Nama PPK","Nama PPTK","Sumber Temuan","Jenis Temuan","Kategori Belanja","Tahun Anggaran","Nilai Temuan","Sudah Disetor","Sisa Piutang","Persen Lunas","Status","Perjanjian","Kelompok","Tahap SP","No SP1","Tgl SP1","No SP2","Tgl SP2","No SP3","Tgl SP3","Histori Cicilan","Catatan"];
+    var hdr=["No","Nama Paket","Penyedia Jasa","Alamat Penyedia Jasa","No Kontrak","Nilai Kontrak","Nama PPK","Nama PPTK","Sumber Temuan","Jenis Temuan","Kategori Belanja","Tahun Anggaran","Nilai Temuan","Sudah Disetor","Sisa Piutang","Persen Lunas","Status","Perjanjian","Kelompok","Tahap SP","No SP1","Tgl SP1","No SP2","Tgl SP2","No SP3","Tgl SP3","Histori Cicilan","Catatan"];
     for(var h=0;h<hdr.length;h++) ws[encCol(h)+"1"]={v:hdr[h],t:"s"};
     for(var i=0;i<DATA.length;i++){
       var d=DATA[i];
@@ -1073,6 +1091,7 @@ function dlExcel(){
         String(i+1),
         String(d.nm||""),
         String(d.py||""),
+        String(getAlamat(d.py)||""),
         String(d.nk||""),
         String(d.vk||0),
         String(d.ppk||""),
@@ -1121,8 +1140,8 @@ function dlTemplate(){
   try{
     var wb=XLSX.utils.book_new();
     var ws={};
-    var cols=["Nama Paket","Penyedia Jasa","No Kontrak","Nilai Kontrak","Nama PPK","Nama PPTK","Sumber Temuan","Jenis Temuan","Kategori Belanja","Tahun Anggaran","Nilai Temuan","Status Pembayaran","Perjanjian Angsuran","Kelompok","Tahap SP","No SP1","Tgl SP1","No SP2","Tgl SP2","Catatan"];
-    var contoh=["(wajib) Rehabilitasi Jalan Karangpandan-Blora","(wajib) CV. Redjo Pawiro","05.9/MK/PPK.1/XI/2025","4351337879","Nama PPK","Nama PPTK","LKPD 2025","Kurang Volume","Belanja Modal Jalan","2025","192082000","Belum Setor","Belum Ada","C","Belum SP","","","","",""];
+    var cols=["Nama Paket","Penyedia Jasa","Alamat Penyedia Jasa","No Kontrak","Nilai Kontrak","Nama PPK","Nama PPTK","Sumber Temuan","Jenis Temuan","Kategori Belanja","Tahun Anggaran","Nilai Temuan","Status Pembayaran","Perjanjian Angsuran","Kelompok","Tahap SP","No SP1","Tgl SP1","No SP2","Tgl SP2","Catatan"];
+    var contoh=["(wajib) Rehabilitasi Jalan Karangpandan-Blora","(wajib) CV. Redjo Pawiro","Jl. Lawu No. 371, Cangakan, Karanganyar","05.9/MK/PPK.1/XI/2025","4351337879","Nama PPK","Nama PPTK","LKPD 2025","Kurang Volume","Belanja Modal Jalan","2025","192082000","Belum Setor","Belum Ada","C","Belum SP","","","","",""];
     for(var c=0;c<cols.length;c++){
       ws[encCol(c)+"1"]={v:cols[c],t:"s"};
       ws[encCol(c)+"2"]={v:contoh[c],t:"s"};
@@ -1143,9 +1162,9 @@ function importExcel(inp){
     try{
       const wb=XLSX.read(e.target.result,{type:"array"});
       const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-      let add=0,upd=0;
-      rows.forEach(function(r){
-        if(!r["Nama Paket"]||!r["Penyedia Jasa"])return;
+      let add=0,upd=0,alamatUpd=0;
+      for(const r of rows){
+        if(!r["Nama Paket"]||!r["Penyedia Jasa"])continue;
         const ex=DATA.find(d=>d.nm===r["Nama Paket"]&&d.py===r["Penyedia Jasa"]);
         const thIdx=["Belum SP","SP1","SP2","SP3","Eskalasi"].indexOf(r["Tahap SP"]||"Belum SP");
         var nk=r["No Kontrak"]||r["No. Kontrak"]||"";
@@ -1155,6 +1174,7 @@ function importExcel(inp){
         var s1t=r["Tgl SP1"]||"";
         var s2n=r["No SP2"]||r["No. SP2"]||"";
         var s2t=r["Tgl SP2"]||"";
+        var alamatImp=r["Alamat Penyedia Jasa"]||r["Alamat"]||"";
         const ob={nm:r["Nama Paket"],py:r["Penyedia Jasa"],nk:nk,
           vk:vk,ppk:r["Nama PPK"]||"",pptk:r["Nama PPTK"]||"",
           sb:r["Sumber Temuan"]||"LKPD 2025",jn:r["Jenis Temuan"]||"Kurang Volume",
@@ -1165,8 +1185,22 @@ function importExcel(inp){
           s3n:"",s3t:"",th:thIdx<0?0:thIdx,ct:r["Catatan"]||""};
         if(ex){Object.assign(ex,ob);upd++;}
         else{DATA.push({id:DATA.length?Math.max.apply(null,DATA.map(d=>d.id))+1:1,ci:[],...ob});add++;}
-      });
-      document.getElementById("import-result").innerHTML=`<div class="al blue"><i class="ti ti-check"></i><span>Import selesai: <strong>${add} paket baru</strong> ditambahkan, <strong>${upd} paket</strong> diperbarui.</span></div>`;
+        // Simpan alamat ke master jika kolom Alamat terisi di Excel
+        if(alamatImp && alamatImp.trim()){
+          ALAMAT_PJ[r["Penyedia Jasa"].trim()] = alamatImp.trim();
+          alamatUpd++;
+        }
+      }
+      // Sync alamat ke Firestore sekali setelah loop (lebih efisien daripada per-baris)
+      if(alamatUpd > 0){
+        localStorage.setItem('bpk_alamat_pj', JSON.stringify(ALAMAT_PJ));
+        if(fbReady && fbDb){
+          try{
+            await fbDb.collection(FB_COLLECTION).doc(FB_ALAMAT_DOC).set({data:ALAMAT_PJ, updatedAt:new Date().toISOString()});
+          }catch(err){ console.error('Gagal sync alamat saat import:', err); }
+        }
+      }
+      document.getElementById("import-result").innerHTML=`<div class="al blue"><i class="ti ti-check"></i><span>Import selesai: <strong>${add} paket baru</strong> ditambahkan, <strong>${upd} paket</strong> diperbarui${alamatUpd?', <strong>'+alamatUpd+' alamat</strong> tersinkron':''}.</span></div>`;
       await save();
       toast("Import berhasil: "+add+" baru, "+upd+" diperbarui");
     }catch(err){
@@ -1209,6 +1243,7 @@ const FB_EMBEDDED_CONFIG = {
 const FB_CFG_KEY = 'bpk_firebase_cfg';
 const FB_COLLECTION = 'temuan_bpk';
 const FB_DOC = 'data_bina_marga';
+const FB_ALAMAT_DOC = 'alamat_penyedia';  // dokumen terpisah: master alamat per-penyedia (key = nama PJ)
 
 // ┌─────────────────────────────────────────────────────────┐
 // │  KONFIGURASI CLOUDINARY — untuk Upload Bukti PDF        │
@@ -1222,7 +1257,8 @@ const CLOUDINARY_CONFIG = {
 // ──────────────────────────────────────────────────────────
 const CLD_CFG_KEY = 'bpk_cloudinary_cfg';
 
-let fbApp = null, fbDb = null, fbUnsubscribe = null;
+let fbApp = null, fbDb = null, fbUnsubscribe = null, fbUnsubscribeAlamat = null;
+let ALAMAT_PJ = {};  // { 'CV. Nama': 'Jl. Alamat...' }
 let fbReady = false, fbConfigured = false;
 
 // ── DEFAULT DATA ──
@@ -1351,6 +1387,26 @@ async function fbInit() {
     setOverlayMsg('Memuat data real-time…');
 
     const docRef = fbDb.collection(FB_COLLECTION).doc(FB_DOC);
+    const alamatRef = fbDb.collection(FB_COLLECTION).doc(FB_ALAMAT_DOC);
+
+    // Check if alamat document exists; if not, initialize empty
+    const alamatSnap = await alamatRef.get();
+    if (!alamatSnap.exists) {
+      await alamatRef.set({ data: {}, updatedAt: new Date().toISOString() });
+    }
+
+    // Subscribe real-time listener untuk alamat penyedia (terpisah dari data utama)
+    if (fbUnsubscribeAlamat) fbUnsubscribeAlamat();
+    fbUnsubscribeAlamat = alamatRef.onSnapshot((snapshot) => {
+      if (snapshot.exists) {
+        const remote = snapshot.data();
+        ALAMAT_PJ = remote.data || {};
+        localStorage.setItem('bpk_alamat_pj', JSON.stringify(ALAMAT_PJ));
+        refreshCurrentPage();
+      }
+    }, (err) => {
+      console.error('Firestore alamat listener error:', err);
+    });
 
     // Check if document exists; if not, push default/local data
     const snap = await docRef.get();
@@ -1467,14 +1523,40 @@ async function save() {
   }
 }
 
+// ── ALAMAT PENYEDIA JASA (master data terpusat, per-nama-penyedia) ──
+function getAlamat(namaPenyedia){
+  if(!namaPenyedia) return '';
+  return ALAMAT_PJ[namaPenyedia.trim()] || '';
+}
+
+async function setAlamatPJ(namaPenyedia, alamat){
+  if(!namaPenyedia) return;
+  const key = namaPenyedia.trim();
+  ALAMAT_PJ[key] = (alamat||'').trim();
+  localStorage.setItem('bpk_alamat_pj', JSON.stringify(ALAMAT_PJ));
+
+  if (!fbReady || !fbDb) return;
+  try {
+    const alamatRef = fbDb.collection(FB_COLLECTION).doc(FB_ALAMAT_DOC);
+    await alamatRef.set({ data: ALAMAT_PJ, updatedAt: new Date().toISOString() });
+  } catch(err){
+    console.error('Gagal simpan alamat:', err);
+    toast('Gagal simpan alamat ke Firebase: ' + err.message, 'err');
+  }
+}
+
 // ── LOCAL FALLBACK ──
 function getLocalData() {
   try { return JSON.parse(localStorage.getItem('bpk_bm_v3') || '[]'); } catch(e) { return []; }
+}
+function getLocalAlamat() {
+  try { return JSON.parse(localStorage.getItem('bpk_alamat_pj') || '{}'); } catch(e) { return {}; }
 }
 
 function loadLocalFallback() {
   DATA = getLocalData();
   if (!DATA.length) DATA = JSON.parse(JSON.stringify(DEFAULT_DATA));
+  ALAMAT_PJ = getLocalAlamat();
   setUpd();
   rDash();
 }
